@@ -6,7 +6,7 @@
   <title>Upload foto • GPS opzionale</title>
   <meta name="color-scheme" content="light dark"/>
 
-  <!-- EXIF per GPS/data scatto (useremo solo se possibile) -->
+  <!-- EXIF per GPS/data scatto (best-effort) -->
   <script src="https://unpkg.com/exifr@7.1.3/dist/exifr.min
   <style>
     :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
@@ -42,13 +42,13 @@
     <button id="btnPick"  class="secondary">🖼️ Carica foto</button>
   </div>
 
-  <!-- Unico meccanismo: file picker con soli formati web-compatibili -->
-  <input id="inputPicker" type="file" accept="image/jpeg,image/png" style="display:none"/>
+  <!-- Unico picker: su Android permette anche la fotocamera dal menu -->
+  <input id="inputPicker" type="file" accept="image/*" style="display:none"/>
 
   <div id="status"  class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v2.9 • picker unico + compress robusta • uploadCode + redirect</div>
+  <div class="footer">v3.0 • picker unico + compress (≤1MB/1600px) • uploadCode + redirect</div>
 </main>
 
 <script>
@@ -58,8 +58,8 @@
 const CONFIG = {
   FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
 
-  TARGET_MAX_BYTES: 1 * 1024 * 1024, // ~1 MB per stare larghi rispetto ai limiti effettivi di messaggio
-  TARGET_MAX_DIM  : 1600,            // lato lungo max 1600 px
+  TARGET_MAX_BYTES: 1 * 1024 * 1024, // ~1 MB per evitare 502
+  TARGET_MAX_DIM  : 1600,             // lato lungo max 1600 px
   AUTO_REDIRECT_MS: 800
 };
 
@@ -83,12 +83,10 @@ function showPreview(file){
 }
 
 /* =========================
-   RIDUZIONE UNIVERSALE
-   - Prova createImageBitmap (più robusto su file grandi)
-   - Fallback a FileReader+Image+canvas
+   RIDUZIONE/CONVERSIONE UNIVERSALE
 ========================= */
 async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim = CONFIG.TARGET_MAX_DIM){
-  const doEncode = async (bitmap) => {
+  const encode = async (bitmap) => {
     const w0 = bitmap.width, h0 = bitmap.height;
     const scale = Math.min(1, maxDim / Math.max(w0, h0));
     const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
@@ -98,11 +96,11 @@ async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim 
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, w, h);
 
-    let quality = 0.8;
-    let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-    for(let i=0; i<3 && blob && blob.size > maxBytes; i++){
-      quality = Math.max(0.5, quality - 0.1);
-      blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    let q = 0.8;
+    let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+    for (let i=0; i<3 && blob && blob.size > maxBytes; i++){
+      q = Math.max(0.5, q - 0.1);
+      blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
     }
     if (!blob) throw new Error('toBlob failed');
     const name = (file.name || 'photo.jpg').replace(/\.\w+$/i, '.jpg');
@@ -110,27 +108,24 @@ async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim 
   };
 
   try{
-    // se già compatibile e piccolo, evita lavoro
     const isHeic = /image\/heic/i.test(file.type) || /\.heic$/i.test(file.name || '');
     if (!isHeic && file.size <= maxBytes) return file;
 
-    // createImageBitmap → più affidabile su immagini grandi
     if ('createImageBitmap' in window) {
       const bitmap = await createImageBitmap(file);
-      return await doEncode(bitmap);
+      return await encode(bitmap);
     }
 
-    // fallback
     const dataUrl = await new Promise((res, rej) => {
       const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
     });
     const img = await new Promise((res, rej) => {
       const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
     });
-    return await doEncode(img);
+    return await encode(img);
 
   }catch(e){
-    // in ogni caso, se qualcosa va storto → restituisci l’originale (meglio inviare che bloccare)
+    // Se fallisce la conversione, inviamo comunque l’originale (meglio inviare che bloccare)
     return file;
   }
 }
@@ -141,12 +136,12 @@ async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim 
 async function extractGpsFromExif(file){
   try{
     if(!window.exifr) return null;
-    // Per evitare picchi di memoria su file enormi, se > 6MB saltiamo direttamente
-    if (file.size && file.size > 6*1024*1024) return null;
+    if (file.size && file.size > 6*1024*1024) return null; // evita picchi di memoria su file enormi
 
     const gps   = await exifr.gps(file);
     const basic = await exifr.parse(file, ['DateTimeOriginal']).catch(()=> ({}));
     const ts    = (basic && basic.DateTimeOriginal instanceof Date) ? basic.DateTimeOriginal.toISOString() : null;
+
     if (gps && typeof gps.latitude==='number' && typeof gps.longitude==='number'){
       return { latitude:gps.latitude, longitude:gps.longitude, altitude:gps.altitude ?? null, timestamp:ts };
     }
@@ -186,7 +181,7 @@ async function performUpload(file, position, noteIfNoGps){
     setStatus('Foto caricata. Reindirizzamento…', 'ok');
 
     if(qs.returnUrl){
-      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7'; // UploadCode nel Form
+      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7'; // parametro della tua domanda UploadCode
       const sep = qs.returnUrl.includes('?') ? '&' : '?';
       const url = `${qs.returnUrl}${sep}${FIELD}=${encodeURIComponent(uploadCode)}`;
       setTimeout(()=> location.href = url, CONFIG.AUTO_REDIRECT_MS);
@@ -209,25 +204,23 @@ async function handleFile(file){
 
   showPreview(file);
 
-  // Best-effort EXIF (ma se il file è enorme, la saltiamo)
   setStatus('Verifico eventuale GPS…', 'warn');
-  const pos = await extractGpsFromExif(file);
+  const pos = await extractGpsFromExif(file); // best-effort
 
-  // Riduzione/convert universale prima dell’invio
+  // Riduzione/convert a JPEG prima dell'invio (indipendente dal device)
   const slim = await downscaleToJPEG(file);
   await performUpload(slim, pos, !pos);
 }
 
 /* =========================
-   BINDINGS
+   BINDINGS (un solo picker per tutti)
 ========================= */
-// Unifichiamo: entrambi i pulsanti aprono lo stesso file picker (che su Android mostra anche la fotocamera)
 $('btnShoot').addEventListener('click', ()=>{ clearStatus(); $('inputPicker').click(); });
 $('btnPick').addEventListener('click',  ()=>{ clearStatus(); $('inputPicker').click(); });
 
 $('inputPicker').addEventListener('change', async e=>{
   await handleFile(e.target.files?.[0]);
-  e.target.value = '';
+  e.target.value = ''; // reset per scatti consecutivi
 });
 </script>
 </body>
