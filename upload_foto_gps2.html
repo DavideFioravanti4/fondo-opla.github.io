@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark"/>
 
   <!-- EXIF per GPS/data scatto -->
-  <script src="https://unpkg.com/exifr@7.1.3/dist/exifrpt>
+  <script src="https://unpkg.com/exifr@7.1.3in.js</script>
 
   <style>
     :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
@@ -19,9 +19,9 @@
     .row-btn{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:6px 0 6px; }
     button{ border:none; border-radius:12px; padding:14px 18px; font-weight:700; cursor:pointer; }
     .primary{ background:var(--brand); color:#fff; }
-    .secondary{ background:#ffffff; color:var(--brand); border:1px solid #cfe2ff; }
+    .secondary{ background:#ffffff; color:#0b84f3; border:1px solid #cfe2ff; }
     button[disabled]{ opacity:.6; cursor:not-allowed; }
-    .status{ margin-top:10px; text-align:center; min-height:36px; }
+    .status{ margin-top:10px; text-align:center; min-height:40px; }
     .pill{ display:inline-block; padding:8px 10px; border-radius:999px; font-size:13px; }
     .ok{ background:#e8f7f1; color:#0c6b4e; border:1px solid #bfead9; }
     .warn{ background:#fff7e6; color:#8a6100; border:1px solid #fde1a3; }
@@ -33,9 +33,7 @@
 </head>
 
 <body>
-<header>
-  <h1>Upload foto (GPS opzionale)</h1>
-</header>
+<header><h1>Upload foto (GPS opzionale)</h1></header>
 
 <main>
   <p style="text-align:center;margin:0 0 8px;color:#555;">Fondo Oplà • Pagina caricata</p>
@@ -45,14 +43,14 @@
     <button id="btnPick"  class="secondary">🖼️ Carica foto</button>
   </div>
 
-  <!-- input file (nascosti) -->
-  <input id="inputCamera"  type="file" accept="image/*" capture="environment" style="display:none"/>
-  <input id="inputGallery" type="file" accept="image/*" style="display:none"/>
+  <!-- input file: accetta SOLO JPEG/PNG (evita HEIC) -->
+  <input id="inputCamera"  type="file" accept="image/jpeg,image/png" capture="environment" style="display:none"/>
+  <input id="inputGallery" type="file" accept="image/jpeg,image/png" style="display:none"/>
 
   <div id="status"  class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v2.7 • compress/convert per scatto mobile • uploadCode + redirect</div>
+  <div class="footer">v2.8 • JPEG‑only + compress forte • uploadCode + redirect</div>
 </main>
 
 <script>
@@ -60,12 +58,11 @@
    CONFIG
 ========================= */
 const CONFIG = {
-  // Trigger HTTP del flow (POST)
   FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
 
-  // Soglia post-compressione: puntiamo a file <= 2 MB
-  TARGET_MAX_BYTES: 2 * 1024 * 1024,
-  TARGET_MAX_DIM  : 2000,     // lato lungo max 2000 px
+  // target più aggressivo per evitare 502
+  TARGET_MAX_BYTES: 1 * 1024 * 1024,  // ~1 MB
+  TARGET_MAX_DIM  : 1600,             // lato lungo max 1600 px
   AUTO_REDIRECT_MS: 800
 };
 
@@ -90,61 +87,51 @@ function showPreview(file){
 
 /* =========================
    COMPRESSIONE/CONVERSIONE lato client
-   - Se HEIC o > 2MB, converte in JPEG e ridimensiona a maxDim
-   - Altrimenti torna il file originale
 ========================= */
 async function compressIfNeeded(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim = CONFIG.TARGET_MAX_DIM){
   try{
     const isHeic = /image\/heic/i.test(file.type) || /\.heic$/i.test(file.name || '');
-    if (!isHeic && file.size <= maxBytes) return file;
 
-    // Leggi il file come DataURL
+    // Se HEIC: non tentiamo canvas (Safari/Chrome non decodificano in modo affidabile)
+    if (isHeic) return { file: file, converted: false, reason: 'heic' };
+
+    // Se già piccolo → ok
+    if (file.size <= maxBytes) return { file, converted: false, reason: 'small' };
+
+    // Riduzione via canvas (JPEG)
     const dataUrl = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result);
-      r.onerror = rej;
-      r.readAsDataURL(file);
+      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
     });
-
-    // Crea immagine
     const img = await new Promise((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = dataUrl;
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
     });
 
-    // Calcola dimensioni ridotte mantenendo il rapporto
     let { width, height } = img;
     const scale = Math.min(1, maxDim / Math.max(width, height));
-    const w = Math.round(width * scale);
-    const h = Math.round(height * scale);
+    const w = Math.round(width * scale), h = Math.round(height * scale);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, w, h);
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
 
-    // Esporta JPEG compresso; se ancora > soglia, abbassa qualità una/due volte
-    let quality = 0.85;
+    let quality = 0.8;
     let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-    for (let attempts = 0; attempts < 2 && blob && blob.size > maxBytes; attempts++) {
-      quality = Math.max(0.6, quality - 0.15);
+    for (let attempts = 0; attempts < 3 && blob && blob.size > maxBytes; attempts++) {
+      quality = Math.max(0.5, quality - 0.1);
       blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
     }
-    if (!blob) return file; // fallback (mai bloccare l'invio)
+    if (!blob) return { file, converted:false, reason:'toBlobFailed' };
 
     const newName = (file.name || 'photo.jpg').replace(/\.\w+$/i, '.jpg');
-    return new File([blob], newName, { type:'image/jpeg', lastModified: Date.now() });
-  }catch{
-    // In caso di errore in compressione/convert: invia originale
-    return file;
+    const out = new File([blob], newName, { type:'image/jpeg', lastModified: Date.now() });
+    return { file: out, converted:true, reason:'jpegCompressed' };
+
+  } catch {
+    return { file, converted:false, reason:'exception' };
   }
 }
 
 /* =========================
-   EXIF GPS (robusto)
+   EXIF GPS
 ========================= */
 async function extractGpsFromExif(file){
   try{
@@ -153,12 +140,7 @@ async function extractGpsFromExif(file){
     const basic = await exifr.parse(file, ['DateTimeOriginal']).catch(()=> ({}));
     const ts    = (basic && basic.DateTimeOriginal instanceof Date) ? basic.DateTimeOriginal.toISOString() : null;
     if (gps && typeof gps.latitude==='number' && typeof gps.longitude==='number'){
-      return {
-        latitude:  gps.latitude,
-        longitude: gps.longitude,
-        altitude:  gps.altitude ?? null,
-        timestamp: ts
-      };
+      return { latitude:gps.latitude, longitude:gps.longitude, altitude:gps.altitude ?? null, timestamp:ts };
     }
   }catch(_){}
   return null;
@@ -171,18 +153,11 @@ async function performUpload(file, position, noteIfNoGps){
   const fd = new FormData();
   fd.append('file', file, file.name || 'photo.jpg');
 
-  // 1) uploadCode
-  const uploadCode = (crypto && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : (Date.now() + '-' + Math.random().toString(36).slice(2));
+  const uploadCode = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+                                                   : (Date.now() + '-' + Math.random().toString(36).slice(2));
 
-  // 2) metadata per il flow
-  const payload = {
-    uploadCode,
-    proposalId: qs.proposalId || null,
-    position: position ?? null,
-    notes: noteIfNoGps ? 'gps non disponibile' : undefined
-  };
+  const payload = { uploadCode, proposalId: qs.proposalId || null, position: position ?? null,
+                    notes: noteIfNoGps ? 'gps non disponibile' : undefined };
   fd.append('metadata', JSON.stringify(payload));
 
   disableUI(true);
@@ -197,12 +172,11 @@ async function performUpload(file, position, noteIfNoGps){
     await res.json().catch(()=> ({}));
     setStatus('Foto caricata. Reindirizzamento…', 'ok');
 
-    // 3) redirect automatico al Form con UploadCode precompilato
     if(qs.returnUrl){
-      const PARAM_UPLOADCODE = 'r2eaf878955164549a839a54cf37c9ea7'; // parametro della tua domanda "UploadCode"
-      const sep   = qs.returnUrl.includes('?') ? '&' : '?';
-      const back  = `${qs.returnUrl}${sep}${PARAM_UPLOADCODE}=${encodeURIComponent(uploadCode)}`;
-      setTimeout(()=> location.href = back, CONFIG.AUTO_REDIRECT_MS);
+      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7';
+      const sep = qs.returnUrl.includes('?') ? '&' : '?';
+      const url = `${qs.returnUrl}${sep}${FIELD}=${encodeURIComponent(uploadCode)}`;
+      setTimeout(()=> location.href = url, CONFIG.AUTO_REDIRECT_MS);
     } else {
       disableUI(false);
     }
@@ -216,16 +190,27 @@ async function performUpload(file, position, noteIfNoGps){
 /* =========================
    HANDLER
 ========================= */
-async function handleFile(file, mode){ // mode: 'camera' | 'gallery'
+async function handleFile(file, mode){
   clearStatus();
   if(!file) return;
 
   showPreview(file);
   setStatus('Verifico eventuale GPS…', 'warn');
-  const pos = await extractGpsFromExif(file);        // EXIF dal file originale
+  const pos = await extractGpsFromExif(file);  // EXIF dal file originale
 
-  // ✅ NUOVO: comprimi/converti se HEIC o > 2MB
-  const fileToSend = await compressIfNeeded(file);
+  const { file: fileToSend, converted, reason } = await compressIfNeeded(file);
+
+  // Se HEIC non convertibile → blocco gentile con istruzioni
+  if (reason === 'heic') {
+    setStatus(
+      'Foto in formato HEIC. Per evitare errori: usa "Carica foto" oppure, una volta sola su iPhone: ' +
+      'Impostazioni > Fotocamera > Formati > "Più compatibili (Most Compatible)" per salvare JPEG.',
+      'warn'
+    );
+    // Nota: Safari può scegliere HEIC in base a come gestisce l’input. Escludiamo HEIC nell’accept e consigliamo Most Compatible. 
+    // Riferimenti: Apple Dev Forum (Safari/accept HEIC) e Apple Support (Most Compatible).
+    return;
+  }
 
   await performUpload(fileToSend, pos, !pos);
 }
@@ -239,6 +224,5 @@ $('btnPick').addEventListener('click',  ()=>{ clearStatus(); $('inputGallery').c
 $('inputCamera').addEventListener('change', async e=>{ await handleFile(e.target.files?.[0], 'camera');  e.target.value=''; });
 $('inputGallery').addEventListener('change', async e=>{ await handleFile(e.target.files?.[0], 'gallery'); e.target.value=''; });
 </script>
-
 </body>
 </html>
