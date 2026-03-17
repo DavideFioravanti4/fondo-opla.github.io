@@ -6,9 +6,8 @@
   <title>Upload foto • GPS opzionale</title>
   <meta name="color-scheme" content="light dark"/>
 
-  <!-- EXIF per GPS/data scatto -->
-  <script src="https://unpkg.com/exifr@7.1.3in.js</script>
-
+  <!-- EXIF per GPS/data scatto (useremo solo se possibile) -->
+  <script src="https://unpkg.com/exifr@7.1.3/dist/exifr.min
   <style>
     :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
     html,body{ margin:0; padding:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
@@ -43,14 +42,13 @@
     <button id="btnPick"  class="secondary">🖼️ Carica foto</button>
   </div>
 
-  <!-- input file: accetta SOLO JPEG/PNG (evita HEIC) -->
-  <input id="inputCamera"  type="file" accept="image/jpeg,image/png" capture="environment" style="display:none"/>
-  <input id="inputGallery" type="file" accept="image/jpeg,image/png" style="display:none"/>
+  <!-- Unico meccanismo: file picker con soli formati web-compatibili -->
+  <input id="inputPicker" type="file" accept="image/jpeg,image/png" style="display:none"/>
 
   <div id="status"  class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v2.8 • JPEG‑only + compress forte • uploadCode + redirect</div>
+  <div class="footer">v2.9 • picker unico + compress robusta • uploadCode + redirect</div>
 </main>
 
 <script>
@@ -60,9 +58,8 @@
 const CONFIG = {
   FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
 
-  // target più aggressivo per evitare 502
-  TARGET_MAX_BYTES: 1 * 1024 * 1024,  // ~1 MB
-  TARGET_MAX_DIM  : 1600,             // lato lungo max 1600 px
+  TARGET_MAX_BYTES: 1 * 1024 * 1024, // ~1 MB per stare larghi rispetto ai limiti effettivi di messaggio
+  TARGET_MAX_DIM  : 1600,            // lato lungo max 1600 px
   AUTO_REDIRECT_MS: 800
 };
 
@@ -86,56 +83,67 @@ function showPreview(file){
 }
 
 /* =========================
-   COMPRESSIONE/CONVERSIONE lato client
+   RIDUZIONE UNIVERSALE
+   - Prova createImageBitmap (più robusto su file grandi)
+   - Fallback a FileReader+Image+canvas
 ========================= */
-async function compressIfNeeded(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim = CONFIG.TARGET_MAX_DIM){
+async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim = CONFIG.TARGET_MAX_DIM){
+  const doEncode = async (bitmap) => {
+    const w0 = bitmap.width, h0 = bitmap.height;
+    const scale = Math.min(1, maxDim / Math.max(w0, h0));
+    const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
+
+    let quality = 0.8;
+    let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    for(let i=0; i<3 && blob && blob.size > maxBytes; i++){
+      quality = Math.max(0.5, quality - 0.1);
+      blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+    }
+    if (!blob) throw new Error('toBlob failed');
+    const name = (file.name || 'photo.jpg').replace(/\.\w+$/i, '.jpg');
+    return new File([blob], name, { type:'image/jpeg', lastModified: Date.now() });
+  };
+
   try{
+    // se già compatibile e piccolo, evita lavoro
     const isHeic = /image\/heic/i.test(file.type) || /\.heic$/i.test(file.name || '');
+    if (!isHeic && file.size <= maxBytes) return file;
 
-    // Se HEIC: non tentiamo canvas (Safari/Chrome non decodificano in modo affidabile)
-    if (isHeic) return { file: file, converted: false, reason: 'heic' };
+    // createImageBitmap → più affidabile su immagini grandi
+    if ('createImageBitmap' in window) {
+      const bitmap = await createImageBitmap(file);
+      return await doEncode(bitmap);
+    }
 
-    // Se già piccolo → ok
-    if (file.size <= maxBytes) return { file, converted: false, reason: 'small' };
-
-    // Riduzione via canvas (JPEG)
+    // fallback
     const dataUrl = await new Promise((res, rej) => {
       const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
     });
     const img = await new Promise((res, rej) => {
       const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
     });
+    return await doEncode(img);
 
-    let { width, height } = img;
-    const scale = Math.min(1, maxDim / Math.max(width, height));
-    const w = Math.round(width * scale), h = Math.round(height * scale);
-
-    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
-
-    let quality = 0.8;
-    let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-    for (let attempts = 0; attempts < 3 && blob && blob.size > maxBytes; attempts++) {
-      quality = Math.max(0.5, quality - 0.1);
-      blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
-    }
-    if (!blob) return { file, converted:false, reason:'toBlobFailed' };
-
-    const newName = (file.name || 'photo.jpg').replace(/\.\w+$/i, '.jpg');
-    const out = new File([blob], newName, { type:'image/jpeg', lastModified: Date.now() });
-    return { file: out, converted:true, reason:'jpegCompressed' };
-
-  } catch {
-    return { file, converted:false, reason:'exception' };
+  }catch(e){
+    // in ogni caso, se qualcosa va storto → restituisci l’originale (meglio inviare che bloccare)
+    return file;
   }
 }
 
 /* =========================
-   EXIF GPS
+   EXIF GPS (best-effort)
 ========================= */
 async function extractGpsFromExif(file){
   try{
     if(!window.exifr) return null;
+    // Per evitare picchi di memoria su file enormi, se > 6MB saltiamo direttamente
+    if (file.size && file.size > 6*1024*1024) return null;
+
     const gps   = await exifr.gps(file);
     const basic = await exifr.parse(file, ['DateTimeOriginal']).catch(()=> ({}));
     const ts    = (basic && basic.DateTimeOriginal instanceof Date) ? basic.DateTimeOriginal.toISOString() : null;
@@ -153,11 +161,16 @@ async function performUpload(file, position, noteIfNoGps){
   const fd = new FormData();
   fd.append('file', file, file.name || 'photo.jpg');
 
-  const uploadCode = (crypto && crypto.randomUUID) ? crypto.randomUUID()
-                                                   : (Date.now() + '-' + Math.random().toString(36).slice(2));
+  const uploadCode = (crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : (Date.now() + '-' + Math.random().toString(36).slice(2));
 
-  const payload = { uploadCode, proposalId: qs.proposalId || null, position: position ?? null,
-                    notes: noteIfNoGps ? 'gps non disponibile' : undefined };
+  const payload = {
+    uploadCode,
+    proposalId: qs.proposalId || null,
+    position: position ?? null,
+    notes: noteIfNoGps ? 'gps non disponibile' : undefined
+  };
   fd.append('metadata', JSON.stringify(payload));
 
   disableUI(true);
@@ -173,7 +186,7 @@ async function performUpload(file, position, noteIfNoGps){
     setStatus('Foto caricata. Reindirizzamento…', 'ok');
 
     if(qs.returnUrl){
-      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7';
+      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7'; // UploadCode nel Form
       const sep = qs.returnUrl.includes('?') ? '&' : '?';
       const url = `${qs.returnUrl}${sep}${FIELD}=${encodeURIComponent(uploadCode)}`;
       setTimeout(()=> location.href = url, CONFIG.AUTO_REDIRECT_MS);
@@ -190,39 +203,32 @@ async function performUpload(file, position, noteIfNoGps){
 /* =========================
    HANDLER
 ========================= */
-async function handleFile(file, mode){
+async function handleFile(file){
   clearStatus();
   if(!file) return;
 
   showPreview(file);
+
+  // Best-effort EXIF (ma se il file è enorme, la saltiamo)
   setStatus('Verifico eventuale GPS…', 'warn');
-  const pos = await extractGpsFromExif(file);  // EXIF dal file originale
+  const pos = await extractGpsFromExif(file);
 
-  const { file: fileToSend, converted, reason } = await compressIfNeeded(file);
-
-  // Se HEIC non convertibile → blocco gentile con istruzioni
-  if (reason === 'heic') {
-    setStatus(
-      'Foto in formato HEIC. Per evitare errori: usa "Carica foto" oppure, una volta sola su iPhone: ' +
-      'Impostazioni > Fotocamera > Formati > "Più compatibili (Most Compatible)" per salvare JPEG.',
-      'warn'
-    );
-    // Nota: Safari può scegliere HEIC in base a come gestisce l’input. Escludiamo HEIC nell’accept e consigliamo Most Compatible. 
-    // Riferimenti: Apple Dev Forum (Safari/accept HEIC) e Apple Support (Most Compatible).
-    return;
-  }
-
-  await performUpload(fileToSend, pos, !pos);
+  // Riduzione/convert universale prima dell’invio
+  const slim = await downscaleToJPEG(file);
+  await performUpload(slim, pos, !pos);
 }
 
 /* =========================
    BINDINGS
 ========================= */
-$('btnShoot').addEventListener('click', ()=>{ clearStatus(); $('inputCamera').click(); });
-$('btnPick').addEventListener('click',  ()=>{ clearStatus(); $('inputGallery').click(); });
+// Unifichiamo: entrambi i pulsanti aprono lo stesso file picker (che su Android mostra anche la fotocamera)
+$('btnShoot').addEventListener('click', ()=>{ clearStatus(); $('inputPicker').click(); });
+$('btnPick').addEventListener('click',  ()=>{ clearStatus(); $('inputPicker').click(); });
 
-$('inputCamera').addEventListener('change', async e=>{ await handleFile(e.target.files?.[0], 'camera');  e.target.value=''; });
-$('inputGallery').addEventListener('change', async e=>{ await handleFile(e.target.files?.[0], 'gallery'); e.target.value=''; });
+$('inputPicker').addEventListener('change', async e=>{
+  await handleFile(e.target.files?.[0]);
+  e.target.value = '';
+});
 </script>
 </body>
 </html>
