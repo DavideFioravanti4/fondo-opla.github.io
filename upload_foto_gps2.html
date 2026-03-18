@@ -1,284 +1,227 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Aggiungi foto</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Upload foto • GPS opzionale</title>
+  <meta name="color-scheme" content="light dark"/>
+
+  <!-- EXIF per GPS/data scatto (best-effort) -->
+  <script src="https://unpkg.com/exifr@7.1.3/dist</script>
+
   <style>
-    :root {
-      --brand: #2563eb;           /* blu */
-      --brand-hover: #1e40af;
-      --text: #111827;
-      --muted: #6b7280;
-      --border: #e5e7eb;
-      --bg: #ffffff;
-      --danger: #b91c1c;
-      --success: #065f46;
-    }
-
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; padding: 16px;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-      color: var(--text);
-      background: var(--bg);
-    }
-
-    .wrapper { max-width: 640px; margin: 0 auto; }
-
-    .label { font-weight: 600; margin-bottom: 8px; }
-
-    .actions {
-      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-    }
-
-    .btn {
-      appearance: none; border: 1px solid var(--brand);
-      background: var(--brand); color: #fff;
-      padding: 10px 14px; border-radius: 8px;
-      font-size: 15px; cursor: pointer;
-      transition: background .15s ease, box-shadow .15s ease;
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    .btn:hover { background: var(--brand-hover); }
-    .btn:disabled { opacity: .6; cursor: not-allowed; }
-
-    .btn-outline {
-      background: #fff; color: var(--brand);
-      border-color: var(--brand);
-    }
-    .btn-outline:hover { background: #eff6ff; }
-
-    .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
-
-    .preview {
-      margin-top: 14px; border: 1px dashed var(--border);
-      border-radius: 10px; padding: 10px; display: none;
-    }
-    .preview.visible { display: block; }
-    .preview-row { display: flex; gap: 12px; align-items: center; }
-    .thumb {
-      width: 96px; height: 96px; border-radius: 8px; object-fit: cover; background: #f3f4f6; border: 1px solid var(--border);
-    }
-    .meta { flex: 1; min-width: 0; }
-    .meta .name { font-weight: 600; font-size: 14px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .meta .details { font-size: 12px; color: var(--muted); }
-
-    .row-actions { display: flex; gap: 8px; }
-
-    .status {
-      margin-top: 10px; font-size: 13px;
-      color: var(--success);
-      display: none;
-    }
-    .status.error { color: var(--danger); }
-    .status.visible { display: block; }
-
-    input[type=file] { display: none; }
+    :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
+    html,body{ margin:0; padding:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body{ background:var(--bg); color:#111; }
+    header{ padding:16px; background:linear-gradient(90deg, var(--brand), #6bb6ff); color:#fff; }
+    header h1{ margin:0; font-size:18px; }
+    main{ max-width:680px; margin:16px auto 48px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; }
+    .row-btn{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:6px 0 6px; }
+    button{ border:none; border-radius:12px; padding:14px 18px; font-weight:700; cursor:pointer; }
+    .primary{ background:var(--brand); color:#fff; }
+    button[disabled]{ opacity:.6; cursor:not-allowed; }
+    .status{ margin-top:10px; text-align:center; min-height:40px; }
+    .pill{ display:inline-block; padding:8px 10px; border-radius:999px; font-size:13px; }
+    .ok{ background:#e8f7f1; color:#0c6b4e; border:1px solid #bfead9; }
+    .warn{ background:#fff7e6; color:#8a6100; border:1px solid #fde1a3; }
+    .err{ background:#fde8e8; color:#7e1f1f; border:1px solid #f3b4b4; }
+    .preview{ margin-top:12px; display:flex; justify-content:center; }
+    .preview img{ max-width:100%; border-radius:12px; border:1px solid #e5e7eb; }
+    .footer{ text-align:center; color:#777; font-size:12px; margin-top:16px; }
   </style>
 </head>
+
 <body>
-  <div class="wrapper">
-    <div class="label" id="fieldLabel">Aggiungi foto</div>
-    <div class="actions">
-      <button id="btnPick" type="button" class="btn" aria-describedby="hint">
-        <!-- icona camera semplice -->
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M9 4l1.5-2h3L15 4h3a3 3 0 013 3v10a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h3z" stroke="currentColor" stroke-width="1.6"/>
-          <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.6"/>
-        </svg>
-        Aggiungi foto
-      </button>
-      <button id="btnRemove" type="button" class="btn btn-outline" disabled>Rimuovi</button>
-    </div>
-    <div id="hint" class="hint">
-      Puoi scattare una foto o selezionarla dalla galleria. Dimensioni ottimizzate automaticamente.
-    </div>
+<header><h1>Upload foto (GPS opzionale)</h1></header>
 
-    <input id="fileInput" type="file" accept="image/*" capture="environment" />
+<main>
+  <p style="text-align:center;margin:0 0 8px;color:#555;">Fondo Oplà • Pagina caricata</p>
 
-    <div id="preview" class="preview" aria-live="polite" aria-atomic="true">
-      <div class="preview-row">
-        <img id="thumb" class="thumb" alt="Anteprima foto" />
-        <div class="meta">
-          <div class="name" id="fileName">Nessun file</div>
-          <div class="details" id="fileDetails">—</div>
-        </div>
-        <div class="row-actions">
-          <button id="btnRePick" type="button" class="btn btn-outline">Sostituisci</button>
-        </div>
-      </div>
-      <div id="status" class="status" role="status"></div>
-    </div>
+  <div class="row-btn">
+    <button id="btnAdd" class="primary">➕ Aggiungi foto</button>
   </div>
 
-  <script>
-    (function () {
-      // ====== Parametri di compressione (puoi modificarli) ======
-      const MAX_SIDE_PX = 1600;         // lato lungo massimo
-      const JPEG_QUALITY = 0.8;         // 0..1
-      const TARGET_MIME = 'image/jpeg'; // output forzato in JPEG
+  <!-- Unico picker (consentito: qualsiasi immagine; consigliato JPEG/PNG) -->
+  <input id="inputPicker" type="file" accept="image/*" style="display:none"/>
 
-      // ====== Riferimenti UI ======
-      const fileInput  = document.getElementById('fileInput');
-      const btnPick    = document.getElementById('btnPick');
-      const btnRemove  = document.getElementById('btnRemove');
-      const btnRePick  = document.getElementById('btnRePick');
-      const preview    = document.getElementById('preview');
-      const thumb      = document.getElementById('thumb');
-      const fileNameEl = document.getElementById('fileName');
-      const fileDetEl  = document.getElementById('fileDetails');
-      const statusEl   = document.getElementById('status');
+  <div id="status"  class="status"></div>
+  <div id="preview" class="preview"></div>
 
-      // ====== Utils ======
-      const fmtBytes = (b) => {
-        if (b < 1024) return `${b} B`;
-        if (b < 1024*1024) return `${(b/1024).toFixed(1)} KB`;
-        return `${(b/1024/1024).toFixed(2)} MB`;
-      };
+  <div class="footer">v3.1 • solo “Aggiungi foto” • picker unico + compress (≤1MB/1600px) • uploadCode + redirect</div>
+</main>
 
-      const resetUI = () => {
-        preview.classList.remove('visible');
-        statusEl.classList.remove('visible', 'error');
-        statusEl.textContent = '';
-        thumb.removeAttribute('src');
-        fileNameEl.textContent = 'Nessun file';
-        fileDetEl.textContent  = '—';
-        btnRemove.disabled = true;
-      };
+<script>
+/* =========================
+   CONFIG
+========================= */
+const CONFIG = {
+  FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
 
-      const showStatus = (msg, isError = false) => {
-        statusEl.textContent = msg;
-        statusEl.classList.toggle('error', !!isError);
-        statusEl.classList.add('visible');
-      };
+  TARGET_MAX_BYTES: 1 * 1024 * 1024, // ~1 MB per evitare 502
+  TARGET_MAX_DIM  : 1600,             // lato lungo max 1600 px
+  AUTO_REDIRECT_MS: 800
+};
 
-      const postToParent = (payload) => {
-        try {
-          // Invio al parent (Power Apps, iframe, ecc.)
-          window.parent && window.parent.postMessage(payload, '*');
-        } catch (e) {
-          // Ignora se non in iframe
-        }
-      };
+const $  = id => document.getElementById(id);
+const qs = Object.fromEntries(new URLSearchParams(location.search).entries()); // ?returnUrl=&proposalId=...
 
-      // ====== Logica principali ======
-      btnPick.addEventListener('click', () => fileInput.click());
-      btnRePick.addEventListener('click', () => fileInput.click());
-      btnRemove.addEventListener('click', () => {
-        fileInput.value = '';
-        resetUI();
-        postToParent({ type: 'photoCleared' });
-      });
+function setStatus(msg, type='ok'){
+  const cls = type==='ok' ? 'pill ok' : type==='err' ? 'pill err' : 'pill warn';
+  $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
+}
+function clearStatus(){ $('status').innerHTML = ''; }
+function disableUI(b){ $('btnAdd').disabled = b; }
 
-      fileInput.addEventListener('change', async (ev) => {
-        const file = ev.target.files && ev.target.files[0];
-        if (!file) return;
+function showPreview(file){
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = ()=> URL.revokeObjectURL(url);
+  img.src = url;
+  $('preview').innerHTML = '';
+  $('preview').appendChild(img);
+}
 
-        resetUI();
-        showStatus('Caricamento e ottimizzazione in corso…');
+/* =========================
+   RIDUZIONE/CONVERSIONE UNIVERSALE
+========================= */
+async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim = CONFIG.TARGET_MAX_DIM){
+  const encode = async (bitmap) => {
+    const w0 = bitmap.width, h0 = bitmap.height;
+    const scale = Math.min(1, maxDim / Math.max(w0, h0));
+    const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
 
-        try {
-          const { dataUrl, width, height, blobSize, mime } = await compressImageFile(file, {
-            maxSide: MAX_SIDE_PX,
-            quality: JPEG_QUALITY,
-            targetMime: TARGET_MIME
-          });
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
 
-          // Aggiorna UI
-          thumb.src = dataUrl;
-          fileNameEl.textContent = file.name || 'foto.jpg';
-          fileDetEl.textContent = `${width}×${height}px • ${fmtBytes(blobSize)} • ${mime}`;
-          preview.classList.add('visible');
-          btnRemove.disabled = false;
-          showStatus('Foto pronta. Puoi procedere al salvataggio.');
+    let q = 0.8;
+    let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+    for (let i=0; i<3 && blob && blob.size > maxBytes; i++){
+      q = Math.max(0.5, q - 0.1);
+      blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+    }
+    if (!blob) throw new Error('toBlob failed');
+    const name = (file.name || 'photo.jpg').replace(/\.\w+$/i, '.jpg');
+    return new File([blob], name, { type:'image/jpeg', lastModified: Date.now() });
+  };
 
-          // Post verso il parent (Power Apps ecc.)
-          postToParent({
-            type: 'photoSelected',
-            name: file.name || 'foto.jpg',
-            mime,
-            width, height,
-            blobSize,
-            dataUrl // Data URL Base64 pronta da inviare al Flow / API
-          });
+  try{
+    const isHeic = /image\/heic/i.test(file.type) || /\.heic$/i.test(file.name || '');
+    if (!isHeic && file.size <= maxBytes) return file;
 
-        } catch (err) {
-          console.error(err);
-          showStatus('Errore nella lettura/ottimizzazione della foto.', true);
-          postToParent({ type: 'photoError', message: String(err && err.message || err) });
-        }
-      });
+    if ('createImageBitmap' in window) {
+      const bitmap = await createImageBitmap(file);
+      return await encode(bitmap);
+    }
 
-      // ====== Funzione di compressione ======
-      async function compressImageFile(file, { maxSide, quality, targetMime }) {
-        // 1) Leggi come data URL
-        const dataUrl = await readFileAsDataURL(file);
-        // 2) Crea Image e attende il load
-        const img = await loadImage(dataUrl);
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
+    });
+    const img = await new Promise((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
+    });
+    return await encode(img);
 
-        // 3) Calcola nuove dimensioni mantenendo ratio
-        let { width, height } = img;
-        const isLandscape = width >= height;
-        const currentMaxSide = Math.max(width, height);
+  }catch(e){
+    // se fallisce la conversione, inviamo comunque l’originale
+    return file;
+  }
+}
 
-        let newW = width, newH = height;
-        if (currentMaxSide > maxSide) {
-          if (isLandscape) {
-            newW = maxSide;
-            newH = Math.round((height / width) * newW);
-          } else {
-            newH = maxSide;
-            newW = Math.round((width / height) * newH);
-          }
-        }
+/* =========================
+   EXIF GPS (best‑effort)
+========================= */
+async function extractGpsFromExif(file){
+  try{
+    if(!window.exifr) return null;
+    // Evita picchi di memoria su file enormi
+    if (file.size && file.size > 6*1024*1024) return null;
 
-        // 4) Disegna su canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = newW; canvas.height = newH;
-        const ctx = canvas.getContext('2d');
+    const gps   = await exifr.gps(file);
+    const basic = await exifr.parse(file, ['DateTimeOriginal']).catch(()=> ({}));
+    const ts    = (basic && basic.DateTimeOriginal instanceof Date) ? basic.DateTimeOriginal.toISOString() : null;
 
-        // Migliora qualità di resizing
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+    if (gps && typeof gps.latitude==='number' && typeof gps.longitude==='number'){
+      return { latitude:gps.latitude, longitude:gps.longitude, altitude:gps.altitude ?? null, timestamp:ts };
+    }
+  }catch(_){}
+  return null;
+}
 
-        ctx.drawImage(img, 0, 0, newW, newH);
+/* =========================
+   UPLOAD (multipart/form-data) + redirect
+========================= */
+async function performUpload(file, position, noteIfNoGps){
+  const fd = new FormData();
+  fd.append('file', file, file.name || 'photo.jpg');
 
-        // 5) Esporta in JPEG (o targetMime)
-        const outDataUrl = canvas.toDataURL(targetMime, quality);
-        const outBlob = await dataURLToBlob(outDataUrl);
-        const blobSize = outBlob.size;
+  const uploadCode = (crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : (Date.now() + '-' + Math.random().toString(36).slice(2));
 
-        return { dataUrl: outDataUrl, width: newW, height: newH, blobSize, mime: targetMime };
-      }
+  const payload = {
+    uploadCode,
+    proposalId: qs.proposalId || null,
+    position: position ?? null,
+    notes: noteIfNoGps ? 'gps non disponibile' : undefined
+  };
+  fd.append('metadata', JSON.stringify(payload));
 
-      // ====== Helper async (File/Blob/Image) ======
-      function readFileAsDataURL(file) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = (e) => reject(e);
-          reader.readAsDataURL(file);
-        });
-      }
+  disableUI(true);
+  setStatus('Caricamento…', 'warn');
 
-      function loadImage(src) {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          // Gestione CORS non necessaria per file locali
-          img.onload = () => resolve(img);
-          img.onerror = (e) => reject(e);
-          img.src = src;
-        });
-      }
+  try{
+    const res = await fetch(CONFIG.FLOW_URL, { method:'POST', body: fd, mode:'cors' });
+    if(!res.ok){
+      const t = await res.text().catch(()=> '');
+      throw new Error(`HTTP ${res.status}${t ? ' – ' + t : ''}`);
+    }
+    await res.json().catch(()=> ({}));
+    setStatus('Foto caricata. Reindirizzamento…', 'ok');
 
-      function dataURLToBlob(dataUrl) {
-        return fetch(dataUrl).then(r => r.blob());
-      }
+    if(qs.returnUrl){
+      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7'; // parametro della tua domanda UploadCode nel Form
+      const sep = qs.returnUrl.includes('?') ? '&' : '?';
+      const url = `${qs.returnUrl}${sep}${FIELD}=${encodeURIComponent(uploadCode)}`;
+      setTimeout(()=> location.href = url, CONFIG.AUTO_REDIRECT_MS);
+    } else {
+      disableUI(false);
+    }
+  } catch(err){
+    console.error(err);
+    setStatus('Errore upload: ' + err.message, 'err');
+    disableUI(false);
+  }
+}
 
-      // ====== Annuncia presenza al parent (facoltativo) ======
-      postToParent({ type: 'ready', component: 'aggiungi-foto', version: '1.0.0' });
-    })();
-  </script>
+/* =========================
+   HANDLER
+========================= */
+async function handleFile(file){
+  clearStatus();
+  if(!file) return;
+
+  showPreview(file);
+
+  setStatus('Verifico eventuale GPS…', 'warn');
+  const pos = await extractGpsFromExif(file); // best‑effort
+
+  // Riduzione/convert a JPEG prima dell'invio (indipendente dal device)
+  const slim = await downscaleToJPEG(file);
+  await performUpload(slim, pos, !pos);
+}
+
+/* =========================
+   BINDINGS
+========================= */
+$('btnAdd').addEventListener('click', ()=>{ clearStatus(); $('inputPicker').click(); });
+
+$('inputPicker').addEventListener('change', async e=>{
+  await handleFile(e.target.files?.[0]);
+  e.target.value = ''; // reset per scatti consecutivi
+});
+</script>
 </body>
 </html>
+``
