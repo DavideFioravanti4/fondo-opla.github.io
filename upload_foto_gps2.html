@@ -2,85 +2,183 @@
 <html lang="it">
 <head>
 
-  <!-- v4.3 build 06 - forza rigenerazione GitHub Pages -->
-  < />
+  <!-- v4.9 – box ultra-compatto + logo gigante + foto+video -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
 
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Upload foto/video • GPS opzionale</title>
+  <title>Upload foto / video (GPS opzionale)</title>
   <meta name="color-scheme" content="light dark"/>
 
   <!-- EXIF -->
-  <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.min.js"></script>
+  https://unpkg.com/exifr@7.1.3/dist/full.umd.min.jsscript>
 
   <style>
-    :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
-    html,body{ margin:0; padding:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    body{ background:var(--bg); color:#111; }
-    header{ padding:16px; background:linear-gradient(90deg, var(--brand), #6bb6ff); color:#fff; }
-    header h1{ margin:0; font-size:18px; }
-    main{ max-width:680px; margin:16px auto 48px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; }
-    .row-btn{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:6px 0 6px; }
-    button{ border:none; border-radius:12px; padding:14px 18px; font-weight:700; cursor:pointer; }
-    .btn-photo{ background:var(--brand); color:#fff; }
-    .btn-video{ background:#b7791f; color:#fff; }
-    button[disabled]{ opacity:.6; cursor:not-allowed; }
-    .status{ margin-top:10px; text-align:center; min-height:40px; }
-    .pill{ display:inline-block; padding:8px 10px; border-radius:999px; font-size:13px; }
+    :root{
+      --brand:#0b84f3;
+      --warn:#b7791f;
+      --bg:#eef4ff;
+    }
+
+    html,body{
+      margin:0;
+      padding:0;
+      font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      background:var(--bg) url("sfondo.png") no-repeat center center fixed;
+      background-size:cover;
+      color:#111;
+    }
+
+    header{
+      padding:14px;
+      background:linear-gradient(90deg, var(--brand), #6bb6ff);
+      color:#fff;
+      text-align:center;
+      font-size:19px;
+      font-weight:700;
+    }
+
+    /* ✅ BOX ULTRA-COMPATTO */
+    main{
+      width:300px;         /* ← molto stretto */
+      max-width:92%;
+      margin:14px auto;    /* ← pochissimo spazio verticale */
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      padding:10px 14px 14px; /* ← padding minimo */
+      box-shadow:0 2px 14px rgba(0,0,0,.10);
+      text-align:center;
+    }
+
+    /* ✅ LOGO GIGANTE MA PROPORZIONATO AL BOX */
+    .logo{
+      display:block;
+      margin:0 auto 10px;
+      width:240px;
+      height:auto;
+    }
+
+    .intro{
+      margin:0 0 10px;
+      color:#444;
+      font-size:16px;
+      font-weight:600;
+    }
+
+    /* ✅ PULSANTI IN COLONNA, MOLTO COMPATTI */
+    .row-btn{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px;
+      margin-top:8px;
+    }
+
+    button{
+      width:100%;
+      max-width:220px;      /* ← molto più compatto */
+      border:none;
+      border-radius:10px;
+      padding:10px 14px;
+      font-weight:700;
+      cursor:pointer;
+      font-size:15px;
+      color:#fff;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:6px;
+    }
+
+    .btn-photo{ background:var(--brand); }
+    .btn-video{ background:var(--warn); }
+
+    .status{
+      margin-top:10px;
+      min-height:28px;      /* ← molto più piccolo */
+    }
+
+    .pill{
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:600;
+      display:inline-block;
+    }
+
     .ok{ background:#e8f7f1; color:#0c6b4e; border:1px solid #bfead9; }
     .warn{ background:#fff7e6; color:#8a6100; border:1px solid #fde1a3; }
     .err{ background:#fde8e8; color:#7e1f1f; border:1px solid #f3b4b4; }
-    .preview{ margin-top:12px; display:flex; justify-content:center; }
-    .preview img, .preview video { max-width:100%; border-radius:12px; border:1px solid #e5e7eb; }
-    .footer{ text-align:center; color:#777; font-size:12px; margin-top:16px; }
+
+    .preview{
+      margin-top:10px;
+      display:flex;
+      justify-content:center;
+    }
+
+    .preview img, .preview video{
+      max-width:100%;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+    }
+
+    .footer{
+      margin-top:10px;
+      font-size:11px;
+      color:#555;
+      text-align:center;
+    }
   </style>
 </head>
 
 <body>
-<header><h1>Upload foto / video (GPS opzionale)</h1></header>
+
+<header>Upload foto / video (GPS opzionale)</header>
 
 <main>
-  <p style="text-align:center;margin:0 0 8px;color:#555;">Fondo Oplà • Pagina caricata (v4.3)</p>
 
+  <!-- ✅ LOGO GIGANTE CENTRALE -->
+  LogoUltimaVersione.png
+
+  <div class="intro">Fondo Oplà • Pagina caricata</div>
+
+  <!-- ✅ PULSANTI IN COLONNA -->
   <div class="row-btn">
     <button id="btnPhoto" class="btn-photo">📸 Aggiungi foto</button>
     <button id="btnVideo" class="btn-video">🎥 Aggiungi video</button>
   </div>
 
-  <!-- Picker separati -->
+  <!-- Picker -->
   <input id="inputPhoto" type="file" accept="image/*" style="display:none"/>
   <input id="inputVideo" type="file" accept="video/*" style="display:none"/>
 
-  <div id="status"  class="status"></div>
+  <div id="status" class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v4.3 • foto+video • compatibilità totale • no-cache • UploadCode + redirect</div>
+  <div class="footer">v4.9</div>
+
 </main>
+
 
 <script>
 /* CONFIG */
 const CONFIG = {
-  FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
-  TARGET_MAX_BYTES: 1 * 1024 * 1024,
-  TARGET_MAX_DIM  : 1600,
-  MAX_VIDEO_MB    : 15,
-  AUTO_REDIRECT_MS: 800
+  FLOW_URL:"https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eaecce70bbda403caa744bf8a95ddece/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4xUPro1xqrxgwZVmuyha10sbdZaPj2q7otQs2ReQpWk",
+  TARGET_MAX_BYTES:1*1024*1024,
+  TARGET_MAX_DIM:1600,
+  MAX_VIDEO_MB:15,
+  AUTO_REDIRECT_MS:900
 };
 
 const $ = id => document.getElementById(id);
 const qs = Object.fromEntries(new URLSearchParams(location.search).entries());
 
-/* UI HELPERS */
 function setStatus(msg,type='ok'){
-  const cls = type==='ok'?'pill ok':type==='err'?'pill err':'pill warn';
-  $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
-}
-function clearStatus(){ $('status').innerHTML=''; }
-function disableUI(b){
-  $('btnPhoto').disabled=b;
-  $('btnVideo').disabled=b;
+  const c = type==='ok'?'pill ok':type==='err'?'pill err':'pill warn';
+  $('status').innerHTML = `<span class="${c}">${msg}</span>`;
 }
 
 /* ANTEPRIMA */
@@ -88,41 +186,36 @@ function showPreview(file){
   const url = URL.createObjectURL(file);
   const p = $('preview');
   p.innerHTML='';
-
   if(file.type.startsWith("image/")){
-    const img = new Image();
-    img.onload = ()=> URL.revokeObjectURL(url);
-    img.src = url;
+    const img=new Image();
+    img.onload=()=>URL.revokeObjectURL(url);
+    img.src=url;
     p.appendChild(img);
   } else {
-    const vid = document.createElement("video");
-    vid.src=url;
-    vid.controls = true;
-    vid.onloadeddata = ()=> URL.revokeObjectURL(url);
+    const vid=document.createElement("video");
+    vid.src=url; vid.controls=true;
+    vid.onloadeddata=()=>URL.revokeObjectURL(url);
     p.appendChild(vid);
   }
 }
 
-/* FOTO - COMPRESSIONE */
+/* Compress foto */
 async function downscaleToJPEG(file){
   try{
-    const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, CONFIG.TARGET_MAX_DIM / Math.max(bmp.width,bmp.height));
-    const w = Math.round(bmp.width*scale);
-    const h = Math.round(bmp.height*scale);
+    const bmp=await createImageBitmap(file);
+    const scale=Math.min(1,CONFIG.TARGET_MAX_DIM/Math.max(bmp.width,bmp.height));
+    const w=Math.round(bmp.width*scale);
+    const h=Math.round(bmp.height*scale);
 
-    const canvas = document.createElement("canvas");
+    const canvas=document.createElement("canvas");
     canvas.width=w; canvas.height=h;
+    canvas.getContext("2d").drawImage(bmp,0,0,w,h);
 
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(bmp,0,0,w,h);
-
-    let q=0.8, blob;
-    blob = await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
-
-    while(blob.size > CONFIG.TARGET_MAX_BYTES && q > 0.4){
-      q -= 0.1;
-      blob = await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
+    let q=0.8;
+    let blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
+    while(blob.size>CONFIG.TARGET_MAX_BYTES&&q>0.4){
+      q-=0.1;
+      blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
     }
 
     return new File([blob],"photo.jpg",{type:"image/jpeg"});
@@ -131,90 +224,84 @@ async function downscaleToJPEG(file){
   }
 }
 
-/* EXIF GPS */
+/* GPS */
 async function extractGps(file){
   try{
-    const gps = await exifr.gps(file);
-    if(gps?.latitude && gps?.longitude) return gps;
+    const gps=await exifr.gps(file);
+    if(gps?.latitude&&gps?.longitude) return gps;
   }catch(e){}
   return null;
 }
 
-/* UPLOAD */
-async function performUpload(file, position, noGps){
-  const fd = new FormData();
+/* Upload */
+async function performUpload(file,position,noGps){
+  const fd=new FormData();
   fd.append("file",file,file.name);
 
-  const uploadCode = crypto?.randomUUID ? crypto.randomUUID() : Date.now();
+  const uploadCode=crypto?.randomUUID?crypto.randomUUID():Date.now();
 
-  const metadata = {
+  fd.append("metadata",JSON.stringify({
     uploadCode,
-    proposalId: qs.proposalId || null,
+    proposalId:qs.proposalId||null,
     position,
-    notes: noGps ? "gps non disponibile" : undefined
-  };
+    notes:noGps?"gps non disponibile":undefined
+  }));
 
-  fd.append("metadata",JSON.stringify(metadata));
-
-  disableUI(true);
+  $('btnPhoto').disabled=true;
+  $('btnVideo').disabled=true;
   setStatus("Caricamento…","warn");
 
   try{
-    const res = await fetch(CONFIG.FLOW_URL,{method:"POST",body:fd});
+    const res=await fetch(CONFIG.FLOW_URL,{method:"POST",body:fd});
     if(!res.ok) throw new Error("HTTP "+res.status);
 
-    setStatus("File caricato. Reindirizzamento…","ok");
+    setStatus("File caricato. Reindirizzo…","ok");
 
     if(qs.returnUrl){
-      const FIELD="r2eaf878955164549a839a54cf37c9ea7";
-      const sep = qs.returnUrl.includes("?")?"&":"?";
-      setTimeout(()=>{
-        location.href = `${qs.returnUrl}${sep}${FIELD}=${uploadCode}`;
-      },CONFIG.AUTO_REDIRECT_MS);
-    } else {
-      disableUI(false);
+      const key="r2eaf878955164549a839a54cf37c9ea7";
+      const sep=qs.returnUrl.includes("?")?"&":"?";
+      setTimeout(()=>location.href=
+        `${qs.returnUrl}${sep}${key}=${uploadCode}`,
+      CONFIG.AUTO_REDIRECT_MS);
     }
 
   }catch(err){
     setStatus("Errore: "+err.message,"err");
-    disableUI(false);
+    $('btnPhoto').disabled=false;
+    $('btnVideo').disabled=false;
   }
 }
 
-/* VIDEO */
+/* Foto */
+async function handlePhoto(file){
+  if(!file) return;
+  showPreview(file);
+  setStatus("Verifico GPS…","warn");
+  const gps=await extractGps(file);
+  const slim=await downscaleToJPEG(file);
+  await performUpload(slim,gps,!gps);
+}
+
+/* Video */
 async function handleVideo(file){
   if(!file) return;
-  if(file.size > CONFIG.MAX_VIDEO_MB*1024*1024){
-    setStatus(`Video troppo grande (>${CONFIG.MAX_VIDEO_MB}MB)`,"err");
-    return;
-  }
+  if(file.size > CONFIG.MAX_VIDEO_MB*1024*1024)
+    return setStatus(`Video troppo grande (>${CONFIG.MAX_VIDEO_MB}MB)`,"err");
   showPreview(file);
   await performUpload(file,null,false);
 }
 
-/* FOTO */
-async function handlePhoto(file){
-  if(!file) return;
-  showPreview(file);
-
-  setStatus("Verifico GPS…","warn");
-  const gps = await extractGps(file);
-  const slim = await downscaleToJPEG(file);
-
-  await performUpload(slim,gps,!gps);
-}
-
-/* EVENTI */
+/* Eventi */
 $('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
 $('btnVideo').addEventListener('click',()=> $('inputVideo').click());
 
-$('inputPhoto').addEventListener('change', async e=>{
-  await handlePhoto(e.target.files?.[0]);
+$('inputPhoto').addEventListener('change',e=>{
+  handlePhoto(e.target.files?.[0]);
   e.target.value='';
 });
-$('inputVideo').addEventListener('change', async e=>{
-  await handleVideo(e.target.files?.[0]);
-  e.target.value='';
+
+$('inputVideo').addEventListener('change',e=>{
+  handleVideo(e.target.files?.[0]);
 });
 </script>
 
