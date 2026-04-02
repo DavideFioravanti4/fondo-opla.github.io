@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark"/>
 
   <!-- EXIF CORRETTO -->
-  https://unpkg.com/exifr@7.1.3/dist/full.umd.jsscript>
+  <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.min.js"></script>
 
   <style>
     :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
@@ -18,8 +18,8 @@
     main{ max-width:680px; margin:16px auto 48px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; }
     .row-btn{ display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:6px 0 6px; }
     button{ border:none; border-radius:12px; padding:14px 18px; font-weight:700; cursor:pointer; }
-    .primary{ background:var(--brand); color:#fff; }
-    .video-btn{ background:#b7791f; color:#fff; }
+    .btn-photo{ background:var(--brand); color:#fff; }
+    .btn-video{ background:#b7791f; color:#fff; }
     button[disabled]{ opacity:.6; cursor:not-allowed; }
     .status{ margin-top:10px; text-align:center; min-height:40px; }
     .pill{ display:inline-block; padding:8px 10px; border-radius:999px; font-size:13px; }
@@ -39,18 +39,18 @@
   <p style="text-align:center;margin:0 0 8px;color:#555;">Fondo Oplà • Pagina caricata</p>
 
   <div class="row-btn">
-    <button id="btnPhoto" class="primary">📸 Aggiungi foto</button>
-    <button id="btnVideo" class="video-btn">🎥 Aggiungi video</button>
+    <button id="btnPhoto" class="btn-photo">📸 Aggiungi foto</button>
+    <button id="btnVideo" class="btn-video">🎥 Aggiungi video</button>
   </div>
 
-  <!-- PICKER SEPARATI (necessari per Microsoft Forms) -->
+  <!-- PICKER SEPARATI -->
   <input id="inputPhoto" type="file" accept="image/*" style="display:none"/>
   <input id="inputVideo" type="file" accept="video/*" style="display:none"/>
 
   <div id="status"  class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v4.1 • foto+video • compatibile Microsoft Forms • compress foto • limite video 15MB</div>
+  <div class="footer">v4.2 • foto+video • compress foto • limite video 15MB • UploadCode + redirect</div>
 </main>
 
 <script>
@@ -59,20 +59,15 @@
 ========================= */
 const CONFIG = {
   FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
-
   TARGET_MAX_BYTES: 1 * 1024 * 1024,
   TARGET_MAX_DIM  : 1600,
   MAX_VIDEO_MB    : 15,
   AUTO_REDIRECT_MS: 800
 };
 
-const $  = id => document.getElementById(id);
+const $ = id => document.getElementById(id);
 const qs = Object.fromEntries(new URLSearchParams(location.search).entries());
 
-
-/* =========================
-   UI
-========================= */
 function setStatus(msg, type='ok'){
   const cls = type==='ok' ? 'pill ok' : type==='err' ? 'pill err' : 'pill warn';
   $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
@@ -83,79 +78,68 @@ function disableUI(b){
   $('btnVideo').disabled = b;
 }
 
-
 /* =========================
    ANTEPRIMA
 ========================= */
 function showPreview(file){
   const url = URL.createObjectURL(file);
-  const prev = $('preview');
-  prev.innerHTML = '';
+  const p = $('preview');
+  p.innerHTML = '';
 
-  if(file.type.startsWith('image/')){
+  if(file.type.startsWith("image/")){
     const img = new Image();
     img.onload = ()=> URL.revokeObjectURL(url);
     img.src = url;
-    prev.appendChild(img);
+    p.appendChild(img);
   } else {
-    const vid = document.createElement('video');
+    const vid = document.createElement("video");
     vid.src = url;
     vid.controls = true;
     vid.onloadeddata = ()=> URL.revokeObjectURL(url);
-    prev.appendChild(vid);
+    p.appendChild(vid);
   }
 }
-
 
 /* =========================
    COMPRESSIONE FOTO
 ========================= */
 async function downscaleToJPEG(file){
-  const encode = async bitmap => {
-    const w0 = bitmap.width, h0 = bitmap.height;
-    const scale = Math.min(1, CONFIG.TARGET_MAX_DIM / Math.max(w0,h0));
-    const w = Math.round(w0*scale), h = Math.round(h0*scale);
+  try{
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, CONFIG.TARGET_MAX_DIM / Math.max(bmp.width,bmp.height));
+    const w = Math.round(bmp.width * scale);
+    const h = Math.round(bmp.height * scale);
 
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
 
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(bitmap,0,0,w,h);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bmp,0,0,w,h);
 
     let q = 0.8, blob;
-    blob = await new Promise(r=>canvas.toBlob(r,'image/jpeg',q));
+    blob = await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
 
-    for(let i=0;i<4 && blob.size>CONFIG.TARGET_MAX_BYTES;i++){
+    while(blob.size > CONFIG.TARGET_MAX_BYTES && q > 0.4){
       q -= 0.1;
-      blob = await new Promise(r=>canvas.toBlob(r,'image/jpeg',q));
+      blob = await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
     }
 
-    return new File([blob], "photo.jpg", {type:"image/jpeg"});
-  };
-
-  try{
-    if('createImageBitmap' in window){
-      const bmp = await createImageBitmap(file);
-      return await encode(bmp);
-    }
-  }catch(e){}
-
-  return file;
+    return new File([blob],"photo.jpg",{type:"image/jpeg"});
+  }catch(e){
+    return file;
+  }
 }
-
 
 /* =========================
    EXIF GPS
 ========================= */
 async function extractGps(file){
   try{
-    if(file.size > 6*1024*1024) return null;
     const gps = await exifr.gps(file);
     if(gps?.latitude && gps?.longitude) return gps;
   }catch(e){}
   return null;
 }
-
 
 /* =========================
    UPLOAD FLOW
@@ -164,45 +148,44 @@ async function performUpload(file, position, noteIfNoGps){
   const fd = new FormData();
   fd.append("file", file, file.name);
 
-  const uploadCode = crypto?.randomUUID ? crypto.randomUUID() : Date.now()+"-"+Math.random().toString(36).slice(2);
+  const uploadCode = crypto?.randomUUID ? crypto.randomUUID() : Date.now();
 
-  const payload = {
+  const metadata = {
     uploadCode,
     proposalId: qs.proposalId || null,
     position,
     notes: noteIfNoGps ? "gps non disponibile" : undefined
   };
-  fd.append("metadata", JSON.stringify(payload));
 
+  fd.append("metadata", JSON.stringify(metadata));
   disableUI(true);
   setStatus("Caricamento…","warn");
 
   try{
-    const res = await fetch(CONFIG.FLOW_URL, {method:"POST", body:fd});
+    const res = await fetch(CONFIG.FLOW_URL, { method:"POST", body:fd });
     if(!res.ok) throw new Error("HTTP "+res.status);
 
     setStatus("File caricato. Reindirizzamento…","ok");
 
     if(qs.returnUrl){
-      const f="r2eaf878955164549a839a54cf37c9ea7";
-      const sep=qs.returnUrl.includes("?")?"&":"?";
-      const url=`${qs.returnUrl}${sep}${f}=${encodeURIComponent(uploadCode)}`;
-      setTimeout(()=>location.href=url,CONFIG.AUTO_REDIRECT_MS);
+      const FIELD = "r2eaf878955164549a839a54cf37c9ea7";
+      const sep = qs.returnUrl.includes("?") ? "&" : "?";
+      const url = `${qs.returnUrl}${sep}${FIELD}=${uploadCode}`;
+      setTimeout(()=>location.href=url, CONFIG.AUTO_REDIRECT_MS);
     } else {
       disableUI(false);
     }
-
   }catch(err){
     setStatus("Errore: "+err.message,"err");
     disableUI(false);
   }
 }
 
-
 /* =========================
    VIDEO HANDLER
 ========================= */
 async function handleVideo(file){
+  if(!file) return;
   if(file.size > CONFIG.MAX_VIDEO_MB * 1024 * 1024){
     setStatus(`Video troppo grande (>${CONFIG.MAX_VIDEO_MB} MB)`,"err");
     return;
@@ -211,33 +194,25 @@ async function handleVideo(file){
   await performUpload(file, null, false);
 }
 
-
 /* =========================
    FOTO HANDLER
 ========================= */
 async function handlePhoto(file){
+  if(!file) return;
   showPreview(file);
-  setStatus("Verifico GPS…","warn");
 
+  setStatus("Verifico GPS…","warn");
   const gps = await extractGps(file);
   const slim = await downscaleToJPEG(file);
 
   await performUpload(slim, gps, !gps);
 }
 
-
 /* =========================
    EVENTI
 ========================= */
-$('btnPhoto').addEventListener('click', ()=>{
-  clearStatus();
-  $('inputPhoto').click();
-});
-
-$('btnVideo').addEventListener('click', ()=>{
-  clearStatus();
-  $('inputVideo').click();
-});
+$('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
+$('btnVideo').addEventListener('click',()=> $('inputVideo').click());
 
 $('inputPhoto').addEventListener('change', async e=>{
   await handlePhoto(e.target.files?.[0]);
