@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Upload foto • GPS opzionale</title>
+  <title>Upload foto/video • GPS opzionale</title>
   <meta name="color-scheme" content="light dark"/>
 
-  <!-- EXIF per GPS/data scatto (best-effort) -->
-  <script src="https://unpkg.com/exifr@7.1.3/dist</script>
+  <!-- EXIF corretto -->
+  <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.js"></script>
 
   <style>
     :root{ --brand:#0b84f3; --ok:#1aa36f; --warn:#b7791f; --err:#d64545; --bg:#f7fafc; }
@@ -26,28 +26,28 @@
     .warn{ background:#fff7e6; color:#8a6100; border:1px solid #fde1a3; }
     .err{ background:#fde8e8; color:#7e1f1f; border:1px solid #f3b4b4; }
     .preview{ margin-top:12px; display:flex; justify-content:center; }
-    .preview img{ max-width:100%; border-radius:12px; border:1px solid #e5e7eb; }
+    .preview img, .preview video { max-width:100%; border-radius:12px; border:1px solid #e5e7eb; }
     .footer{ text-align:center; color:#777; font-size:12px; margin-top:16px; }
   </style>
 </head>
 
 <body>
-<header><h1>Upload foto (GPS opzionale)</h1></header>
+<header><h1>Upload foto / video (GPS opzionale)</h1></header>
 
 <main>
   <p style="text-align:center;margin:0 0 8px;color:#555;">Fondo Oplà • Pagina caricata</p>
 
   <div class="row-btn">
-    <button id="btnAdd" class="primary">➕ Aggiungi foto</button>
+    <button id="btnAdd" class="primary">➕ Aggiungi foto o video</button>
   </div>
 
-  <!-- Unico picker (consentito: qualsiasi immagine; consigliato JPEG/PNG) -->
-  <input id="inputPicker" type="file" accept="image/*" style="display:none"/>
+  <!-- Picker unico -->
+  <input id="inputPicker" type="file" accept="image/*,video/*" style="display:none"/>
 
   <div id="status"  class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v3.1 • solo “Aggiungi foto” • picker unico + compress (≤1MB/1600px) • uploadCode + redirect</div>
+  <div class="footer">v4.0 • foto+video • compress foto ≤1MB • limite video 15MB • redirect</div>
 </main>
 
 <script>
@@ -57,14 +57,19 @@
 const CONFIG = {
   FLOW_URL: "https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/9fcb17d91fb04381a99b73253c58be13/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=jKLvegzU4_lKaF9gI_bmCIZeiSu2Kl-itRJ7_ZjVFds",
 
-  TARGET_MAX_BYTES: 1 * 1024 * 1024, // ~1 MB per evitare 502
-  TARGET_MAX_DIM  : 1600,             // lato lungo max 1600 px
+  TARGET_MAX_BYTES: 1 * 1024 * 1024,
+  TARGET_MAX_DIM  : 1600,
+  MAX_VIDEO_MB    : 15,
   AUTO_REDIRECT_MS: 800
 };
 
 const $  = id => document.getElementById(id);
-const qs = Object.fromEntries(new URLSearchParams(location.search).entries()); // ?returnUrl=&proposalId=...
+const qs = Object.fromEntries(new URLSearchParams(location.search).entries());
 
+
+/* =========================
+   UI HELPERS
+========================= */
 function setStatus(msg, type='ok'){
   const cls = type==='ok' ? 'pill ok' : type==='err' ? 'pill err' : 'pill warn';
   $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
@@ -72,98 +77,127 @@ function setStatus(msg, type='ok'){
 function clearStatus(){ $('status').innerHTML = ''; }
 function disableUI(b){ $('btnAdd').disabled = b; }
 
-function showPreview(file){
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = ()=> URL.revokeObjectURL(url);
-  img.src = url;
-  $('preview').innerHTML = '';
-  $('preview').appendChild(img);
-}
 
 /* =========================
-   RIDUZIONE/CONVERSIONE UNIVERSALE
+   ANTEPRIMA MULTI-FORMATO
+========================= */
+function showPreview(file){
+  const url = URL.createObjectURL(file);
+  const prev = $('preview');
+  prev.innerHTML = '';
+
+  if(file.type.startsWith('image/')){
+    const img = new Image();
+    img.onload = ()=> URL.revokeObjectURL(url);
+    img.src = url;
+    prev.appendChild(img);
+  } else {
+    const vid = document.createElement('video');
+    vid.src = url;
+    vid.controls = true;
+    vid.onloadeddata = ()=> URL.revokeObjectURL(url);
+    prev.appendChild(vid);
+  }
+}
+
+
+/* =========================
+   COMPRESSIONE FOTO
 ========================= */
 async function downscaleToJPEG(file, maxBytes = CONFIG.TARGET_MAX_BYTES, maxDim = CONFIG.TARGET_MAX_DIM){
-  const encode = async (bitmap) => {
+  const encode = async bitmap => {
     const w0 = bitmap.width, h0 = bitmap.height;
     const scale = Math.min(1, maxDim / Math.max(w0, h0));
     const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
 
     const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, w, h);
 
     let q = 0.8;
     let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
-    for (let i=0; i<3 && blob && blob.size > maxBytes; i++){
+
+    for(let i=0;i<3 && blob.size>maxBytes;i++){
       q = Math.max(0.5, q - 0.1);
       blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
     }
-    if (!blob) throw new Error('toBlob failed');
-    const name = (file.name || 'photo.jpg').replace(/\.\w+$/i, '.jpg');
+
+    const name = (file.name||'photo.jpg').replace(/\.\w+$/i,'.jpg');
     return new File([blob], name, { type:'image/jpeg', lastModified: Date.now() });
   };
 
   try{
-    const isHeic = /image\/heic/i.test(file.type) || /\.heic$/i.test(file.name || '');
-    if (!isHeic && file.size <= maxBytes) return file;
+    const isHeic = /heic/i.test(file.type) || /\.heic$/i.test(file.name);
+    if(!isHeic && file.size <= maxBytes) return file;
 
-    if ('createImageBitmap' in window) {
-      const bitmap = await createImageBitmap(file);
-      return await encode(bitmap);
+    if('createImageBitmap' in window){
+      const bmp = await createImageBitmap(file);
+      return await encode(bmp);
     }
 
-    const dataUrl = await new Promise((res, rej) => {
-      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
+    const dataUrl = await new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = ()=>res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
     });
-    const img = await new Promise((res, rej) => {
-      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
+    const img = await new Promise((res,rej)=>{
+      const i = new Image();
+      i.onload = ()=>res(i);
+      i.onerror = rej;
+      i.src = dataUrl;
     });
+
     return await encode(img);
 
   }catch(e){
-    // se fallisce la conversione, inviamo comunque l’originale
     return file;
   }
 }
 
+
 /* =========================
-   EXIF GPS (best‑effort)
+   EXIF GPS
 ========================= */
 async function extractGpsFromExif(file){
   try{
-    if(!window.exifr) return null;
-    // Evita picchi di memoria su file enormi
-    if (file.size && file.size > 6*1024*1024) return null;
+    if(file.size > 6*1024*1024) return null;
 
-    const gps   = await exifr.gps(file);
-    const basic = await exifr.parse(file, ['DateTimeOriginal']).catch(()=> ({}));
-    const ts    = (basic && basic.DateTimeOriginal instanceof Date) ? basic.DateTimeOriginal.toISOString() : null;
+    const gps = await exifr.gps(file);
+    const basic = await exifr.parse(file,['DateTimeOriginal']).catch(()=> ({}));
+    const ts = basic?.DateTimeOriginal instanceof Date
+      ? basic.DateTimeOriginal.toISOString()
+      : null;
 
-    if (gps && typeof gps.latitude==='number' && typeof gps.longitude==='number'){
-      return { latitude:gps.latitude, longitude:gps.longitude, altitude:gps.altitude ?? null, timestamp:ts };
+    if(gps?.latitude && gps?.longitude){
+      return {
+        latitude: gps.latitude,
+        longitude: gps.longitude,
+        altitude: gps.altitude ?? null,
+        timestamp: ts
+      };
     }
-  }catch(_){}
+  }catch(e){}
+
   return null;
 }
 
+
 /* =========================
-   UPLOAD (multipart/form-data) + redirect
+   UPLOAD FLOW + REDIRECT
 ========================= */
 async function performUpload(file, position, noteIfNoGps){
   const fd = new FormData();
-  fd.append('file', file, file.name || 'photo.jpg');
+  fd.append('file', file, file.name);
 
-  const uploadCode = (crypto && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : (Date.now() + '-' + Math.random().toString(36).slice(2));
+  const uploadCode = crypto?.randomUUID ? crypto.randomUUID() : Date.now()+'-'+Math.random().toString(36).slice(2);
 
   const payload = {
     uploadCode,
     proposalId: qs.proposalId || null,
-    position: position ?? null,
+    position: position || null,
     notes: noteIfNoGps ? 'gps non disponibile' : undefined
   };
   fd.append('metadata', JSON.stringify(payload));
@@ -175,53 +209,73 @@ async function performUpload(file, position, noteIfNoGps){
     const res = await fetch(CONFIG.FLOW_URL, { method:'POST', body: fd, mode:'cors' });
     if(!res.ok){
       const t = await res.text().catch(()=> '');
-      throw new Error(`HTTP ${res.status}${t ? ' – ' + t : ''}`);
+      throw new Error('HTTP '+res.status+(t?' – '+t:''));
     }
+
     await res.json().catch(()=> ({}));
-    setStatus('Foto caricata. Reindirizzamento…', 'ok');
+    setStatus('File caricato. Reindirizzamento…', 'ok');
 
     if(qs.returnUrl){
-      const FIELD = 'r2eaf878955164549a839a54cf37c9ea7'; // parametro della tua domanda UploadCode nel Form
+      const FIELD='r2eaf878955164549a839a54cf37c9ea7';
       const sep = qs.returnUrl.includes('?') ? '&' : '?';
       const url = `${qs.returnUrl}${sep}${FIELD}=${encodeURIComponent(uploadCode)}`;
-      setTimeout(()=> location.href = url, CONFIG.AUTO_REDIRECT_MS);
+      setTimeout(()=>location.href=url, CONFIG.AUTO_REDIRECT_MS);
     } else {
       disableUI(false);
     }
-  } catch(err){
-    console.error(err);
-    setStatus('Errore upload: ' + err.message, 'err');
+
+  }catch(err){
+    setStatus('Errore upload: '+err.message,'err');
     disableUI(false);
   }
 }
 
+
 /* =========================
-   HANDLER
+   VIDEO HANDLER
+========================= */
+async function handleVideo(file){
+  if(file.size > CONFIG.MAX_VIDEO_MB * 1024 * 1024){
+    return setStatus(`Video troppo grande (>${CONFIG.MAX_VIDEO_MB}MB)`,'err');
+  }
+  showPreview(file);
+  await performUpload(file, null, false);
+}
+
+
+/* =========================
+   HANDLER GENERALE
 ========================= */
 async function handleFile(file){
   clearStatus();
   if(!file) return;
 
+  if(file.type.startsWith('video/')){
+    return await handleVideo(file);
+  }
+
   showPreview(file);
+  setStatus('Verifico GPS…','warn');
 
-  setStatus('Verifico eventuale GPS…', 'warn');
-  const pos = await extractGpsFromExif(file); // best‑effort
-
-  // Riduzione/convert a JPEG prima dell'invio (indipendente dal device)
+  const pos = await extractGpsFromExif(file);
   const slim = await downscaleToJPEG(file);
   await performUpload(slim, pos, !pos);
 }
 
+
 /* =========================
    BINDINGS
 ========================= */
-$('btnAdd').addEventListener('click', ()=>{ clearStatus(); $('inputPicker').click(); });
+$('btnAdd').addEventListener('click', ()=>{
+  clearStatus();
+  $('inputPicker').click();
+});
 
 $('inputPicker').addEventListener('change', async e=>{
   await handleFile(e.target.files?.[0]);
-  e.target.value = ''; // reset per scatti consecutivi
+  e.target.value='';
 });
 </script>
+
 </body>
 </html>
-``
