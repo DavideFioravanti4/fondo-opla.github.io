@@ -2,14 +2,14 @@
 <html lang="it">
 <head>
 
-  <!-- v5.0 – box ultra-compatto + logo massimo + foto+video -->
+  <!-- v5.1 – box ultra-compatto + logo enorme + header pulito -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
 
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Upload foto / video (GPS opzionale)</title>
+  <title>Upload foto / video</title>
   <meta name="color-scheme" content="light dark"/>
 
   <!-- EXIF -->
@@ -25,12 +25,13 @@
     html,body{
       margin:0;
       padding:0;
-      font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       background:var(--bg) url("sfondo.png") no-repeat center center fixed;
       background-size:cover;
       color:#111;
     }
 
+    /* ✅ HEADER SENZA “GPS opzionale” */
     header{
       padding:14px;
       background:linear-gradient(90deg, var(--brand), #6bb6ff);
@@ -40,35 +41,36 @@
       font-weight:700;
     }
 
-    /* ✅ BOX PIÙ PICCOLO POSSIBILE */
+    /* ✅ BOX ULTRA COMPATTO – il più piccolo possibile */
     main{
-      width:280px;            /* ← ULTRA COMPATTO */
-      max-width:92%;
-      margin:12px auto;       /* ← margine minimo */
+      width:260px;            /* ← stretto al massimo senza deformare */
+      max-width:93%;
+      margin:12px auto;
       background:#fff;
       border:1px solid #e5e7eb;
       border-radius:12px;
-      padding:8px 10px 12px;  /* ← padding minimo */
+      padding:6px 10px 12px;  /* ← padding minimo */
       box-shadow:0 2px 12px rgba(0,0,0,.10);
       text-align:center;
     }
 
-    /* ✅ LOGO MAX (ancora più grande) */
+    /* ✅ LOGO ANCORA PIÙ GRANDE (dominante) */
     .logo{
       display:block;
-      margin:0 auto 12px;
-      width:300px;            /* ← ANCORA PIÙ GRANDE */
+      margin:0 auto 10px;
+      width:310px;            /* ← MASSIMO */
       height:auto;
+      transform:translateY(-10px); /* logo spinge verso l'alto */
     }
 
     .intro{
       margin:0 0 10px;
       color:#444;
-      font-size:16px;
+      font-size:15px;
       font-weight:600;
     }
 
-    /* ✅ Pulsanti in colonna, compatti */
+    /* ✅ Pulsanti in colonna, più compatti */
     .row-btn{
       display:flex;
       flex-direction:column;
@@ -136,11 +138,11 @@
 
 <body>
 
-<header>Upload foto / video (GPS opzionale)</header>
+<header>Upload foto / video</header>
 
 <main>
 
-  <!-- ✅ LOGO GIGANTE -->
+  <!-- ✅ LOGO GIGANTE E CORRETTO -->
   LogoUltimaVersione.png
 
   <div class="intro">Fondo Oplà • Pagina caricata</div>
@@ -157,7 +159,7 @@
   <div id="status" class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v5.0</div>
+  <div class="footer">v5.1</div>
 
 </main>
 
@@ -180,7 +182,6 @@ function setStatus(msg,type='ok'){
   $('status').innerHTML = `<span class="${c}">${msg}</span>`;
 }
 
-/* Anteprima */
 function showPreview(file){
   const url = URL.createObjectURL(file);
   const p = $('preview');
@@ -199,7 +200,6 @@ function showPreview(file){
   }
 }
 
-/* Foto – compressione */
 async function downscaleToJPEG(file){
   try{
     const bmp=await createImageBitmap(file);
@@ -224,7 +224,6 @@ async function downscaleToJPEG(file){
   }
 }
 
-/* GPS */
 async function extractGps(file){
   try{
     const gps=await exifr.gps(file);
@@ -233,7 +232,6 @@ async function extractGps(file){
   return null;
 }
 
-/* Upload */
 async function performUpload(file,position,noGps){
   const fd=new FormData();
   fd.append("file",file,file.name);
@@ -272,7 +270,6 @@ async function performUpload(file,position,noGps){
   }
 }
 
-/* Foto */
 async function handlePhoto(file){
   if(!file) return;
   showPreview(file);
@@ -282,7 +279,6 @@ async function handlePhoto(file){
   await performUpload(slim,gps,!gps);
 }
 
-/* Video */
 async function handleVideo(file){
   if(!file) return;
   if(file.size > CONFIG.MAX_VIDEO_MB*1024*1024)
@@ -291,7 +287,6 @@ async function handleVideo(file){
   await performUpload(file,null,false);
 }
 
-/* Eventi */
 $('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
 $('btnVideo').addEventListener('click',()=> $('inputVideo').click());
 
@@ -302,7 +297,6 @@ $('inputPhoto').addEventListener('change',e=>{
 
 $('inputVideo').addEventListener('change',e=>{
   handleVideo(e.target.files?.[0]);
-  e.target.value='';
 });
 </script>
 
