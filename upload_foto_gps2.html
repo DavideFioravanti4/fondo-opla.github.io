@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 
-  <!-- v5.1 – box ultra-compatto + logo enorme + header pulito -->
+  <!-- v5.2 – box ultra-compatto + logo max + foto+video + fix script -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -12,8 +12,8 @@
   <title>Upload foto / video</title>
   <meta name="color-scheme" content="light dark"/>
 
-  <!-- EXIF -->
-  https://unpkg.com/exifr@7.1.3/dist/full.umd.min.jsscript>
+  <!-- ✅ EXIF CORRETTO -->
+  <script src="https://unpkg.com/exifr@7.1.3/dist.js
 
   <style>
     :root{
@@ -25,13 +25,13 @@
     html,body{
       margin:0;
       padding:0;
-      font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
       background:var(--bg) url("sfondo.png") no-repeat center center fixed;
       background-size:cover;
       color:#111;
     }
 
-    /* ✅ HEADER SENZA “GPS opzionale” */
+    /* ✅ HEADER SENZA "GPS opzionale" */
     header{
       padding:14px;
       background:linear-gradient(90deg, var(--brand), #6bb6ff);
@@ -41,26 +41,26 @@
       font-weight:700;
     }
 
-    /* ✅ BOX ULTRA COMPATTO – il più piccolo possibile */
+    /* ✅ BOX ULTRA COMPATTO */
     main{
-      width:260px;            /* ← stretto al massimo senza deformare */
-      max-width:93%;
+      width:260px;
+      max-width:92%;
       margin:12px auto;
       background:#fff;
       border:1px solid #e5e7eb;
       border-radius:12px;
-      padding:6px 10px 12px;  /* ← padding minimo */
+      padding:6px 10px 12px;
       box-shadow:0 2px 12px rgba(0,0,0,.10);
       text-align:center;
     }
 
-    /* ✅ LOGO ANCORA PIÙ GRANDE (dominante) */
+    /* ✅ LOGO ENORME E PERFETTO */
     .logo{
       display:block;
-      margin:0 auto 10px;
-      width:310px;            /* ← MASSIMO */
+      margin:0 auto 12px;
+      width:320px;   /* MASSIMO */
       height:auto;
-      transform:translateY(-10px); /* logo spinge verso l'alto */
+      transform:translateY(-10px);
     }
 
     .intro{
@@ -70,7 +70,7 @@
       font-weight:600;
     }
 
-    /* ✅ Pulsanti in colonna, più compatti */
+    /* ✅ Pulsanti in colonna, compatti */
     .row-btn{
       display:flex;
       flex-direction:column;
@@ -142,12 +142,11 @@
 
 <main>
 
-  <!-- ✅ LOGO GIGANTE E CORRETTO -->
+  <!-- ✅ LOGO GIGANTE (IMMAGINE REALE) -->
   LogoUltimaVersione.png
 
   <div class="intro">Fondo Oplà • Pagina caricata</div>
 
-  <!-- ✅ Pulsanti in colonna -->
   <div class="row-btn">
     <button id="btnPhoto" class="btn-photo">📸 Aggiungi foto</button>
     <button id="btnVideo" class="btn-video">🎥 Aggiungi video</button>
@@ -159,10 +158,9 @@
   <div id="status" class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v5.1</div>
+  <div class="footer">v5.2</div>
 
 </main>
-
 
 <script>
 /* CONFIG */
@@ -178,13 +176,13 @@ const $ = id => document.getElementById(id);
 const qs = Object.fromEntries(new URLSearchParams(location.search).entries());
 
 function setStatus(msg,type='ok'){
-  const c = type==='ok'?'pill ok':type==='err'?'pill err':'pill warn';
-  $('status').innerHTML = `<span class="${c}">${msg}</span>`;
+  const c=type==='ok'?'pill ok':type==='err'?'pill err':'pill warn';
+  $('status').innerHTML=`<span class="${c}">${msg}</span>`;
 }
 
 function showPreview(file){
-  const url = URL.createObjectURL(file);
-  const p = $('preview');
+  const url=URL.createObjectURL(file);
+  const p=$('preview');
   p.innerHTML='';
   if(file.type.startsWith("image/")){
     const img=new Image();
@@ -193,8 +191,7 @@ function showPreview(file){
     p.appendChild(img);
   } else {
     const vid=document.createElement("video");
-    vid.src=url;
-    vid.controls=true;
+    vid.src=url; vid.controls=true;
     vid.onloadeddata=()=>URL.revokeObjectURL(url);
     p.appendChild(vid);
   }
@@ -203,7 +200,7 @@ function showPreview(file){
 async function downscaleToJPEG(file){
   try{
     const bmp=await createImageBitmap(file);
-    const scale=Math.min(1, CONFIG.TARGET_MAX_DIM / Math.max(bmp.width,bmp.height));
+    const scale=Math.min(1,CONFIG.TARGET_MAX_DIM/Math.max(bmp.width,bmp.height));
     const w=Math.round(bmp.width*scale);
     const h=Math.round(bmp.height*scale);
 
@@ -213,12 +210,12 @@ async function downscaleToJPEG(file){
 
     let q=0.8;
     let blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
-    while(blob.size>CONFIG.TARGET_MAX_BYTES && q>0.4){
+    while(blob.size>CONFIG.TARGET_MAX_BYTES&&q>0.4){
       q-=0.1;
       blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",q));
     }
 
-    return new File([blob], "photo.jpg", {type:"image/jpeg"});
+    return new File([blob],"photo.jpg",{type:"image/jpeg"});
   }catch(e){
     return file;
   }
@@ -258,9 +255,7 @@ async function performUpload(file,position,noGps){
     if(qs.returnUrl){
       const key="r2eaf878955164549a839a54cf37c9ea7";
       const sep=qs.returnUrl.includes("?")?"&":"?";
-      setTimeout(()=>location.href=
-        `${qs.returnUrl}${sep}${key}=${uploadCode}`,
-      CONFIG.AUTO_REDIRECT_MS);
+      setTimeout(()=>location.href=`${qs.returnUrl}${sep}${key}=${uploadCode}`,CONFIG.AUTO_REDIRECT_MS);
     }
 
   }catch(err){
