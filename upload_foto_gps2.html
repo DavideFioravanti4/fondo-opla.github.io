@@ -6,7 +6,7 @@
   <title>Upload foto/video • GPS opzionale</title>
   <meta name="color-scheme" content="light dark"/>
 
-  <!-- EXIF CORRETTO -->
+  <!-- EXIF -->
   <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.min.js"></script>
 
   <style>
@@ -43,14 +43,14 @@
     <button id="btnVideo" class="btn-video">🎥 Aggiungi video</button>
   </div>
 
-  <!-- PICKER SEPARATI -->
+  <!-- Picker separati -->
   <input id="inputPhoto" type="file" accept="image/*" style="display:none"/>
   <input id="inputVideo" type="file" accept="video/*" style="display:none"/>
 
   <div id="status"  class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v4.2 • foto+video • compress foto • limite video 15MB • UploadCode + redirect</div>
+  <div class="footer">v4.2 • foto+video • compress foto ≤1MB • limite video 15MB • UploadCode + redirect</div>
 </main>
 
 <script>
@@ -68,6 +68,7 @@ const CONFIG = {
 const $ = id => document.getElementById(id);
 const qs = Object.fromEntries(new URLSearchParams(location.search).entries());
 
+/* UI */
 function setStatus(msg, type='ok'){
   const cls = type==='ok' ? 'pill ok' : type==='err' ? 'pill err' : 'pill warn';
   $('status').innerHTML = `<span class="${cls}">${msg}</span>`;
@@ -78,9 +79,7 @@ function disableUI(b){
   $('btnVideo').disabled = b;
 }
 
-/* =========================
-   ANTEPRIMA
-========================= */
+/* ANTEPRIMA */
 function showPreview(file){
   const url = URL.createObjectURL(file);
   const p = $('preview');
@@ -100,9 +99,7 @@ function showPreview(file){
   }
 }
 
-/* =========================
-   COMPRESSIONE FOTO
-========================= */
+/* COMPRESSIONE FOTO */
 async function downscaleToJPEG(file){
   try{
     const bmp = await createImageBitmap(file);
@@ -130,9 +127,7 @@ async function downscaleToJPEG(file){
   }
 }
 
-/* =========================
-   EXIF GPS
-========================= */
+/* EXIF GPS */
 async function extractGps(file){
   try{
     const gps = await exifr.gps(file);
@@ -141,10 +136,8 @@ async function extractGps(file){
   return null;
 }
 
-/* =========================
-   UPLOAD FLOW
-========================= */
-async function performUpload(file, position, noteIfNoGps){
+/* UPLOAD */
+async function performUpload(file, position, noGps){
   const fd = new FormData();
   fd.append("file", file, file.name);
 
@@ -154,7 +147,7 @@ async function performUpload(file, position, noteIfNoGps){
     uploadCode,
     proposalId: qs.proposalId || null,
     position,
-    notes: noteIfNoGps ? "gps non disponibile" : undefined
+    notes: noGps ? "gps non disponibile" : undefined
   };
 
   fd.append("metadata", JSON.stringify(metadata));
@@ -181,9 +174,7 @@ async function performUpload(file, position, noteIfNoGps){
   }
 }
 
-/* =========================
-   VIDEO HANDLER
-========================= */
+/* VIDEO */
 async function handleVideo(file){
   if(!file) return;
   if(file.size > CONFIG.MAX_VIDEO_MB * 1024 * 1024){
@@ -194,9 +185,7 @@ async function handleVideo(file){
   await performUpload(file, null, false);
 }
 
-/* =========================
-   FOTO HANDLER
-========================= */
+/* FOTO */
 async function handlePhoto(file){
   if(!file) return;
   showPreview(file);
@@ -208,9 +197,7 @@ async function handlePhoto(file){
   await performUpload(slim, gps, !gps);
 }
 
-/* =========================
-   EVENTI
-========================= */
+/* EVENTI */
 $('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
 $('btnVideo').addEventListener('click',()=> $('inputVideo').click());
 
