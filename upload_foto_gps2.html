@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 
-  <!-- v6.0 – video conversione, compressione, durata max -->
+  <!-- v6.1 – video conversione SharePoint-compatible (H.264) + compressione + limite MB -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -15,8 +15,8 @@
   <!-- EXIF -->
   <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.min.js"></script>
 
-  <!-- ✅ FFMPEG per conversione video -->
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+  <!-- ✅ FFMPEG (conversione H.264) -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.2/dist/ffmpeg.min.js"></script>
 
   <style>
     :root{
@@ -43,7 +43,6 @@
       font-weight:700;
     }
 
-    /* ✅ BOX COMPATTISSIMO */
     main{
       width:260px;
       max-width:92%;
@@ -56,7 +55,6 @@
       text-align:center;
     }
 
-    /* ✅ LOGO ENORME */
     .logo{
       display:block;
       margin:-10px auto 10px;
@@ -111,9 +109,9 @@
       display:inline-block;
     }
 
-    .ok{ background:#e8f7f1; color:#0c6b4e; border:1px solid #bfead9; }
-    .warn{ background:#fff7e6; color:#8a6100; border:1px solid #fde1a3; }
-    .err{ background:#fde8e8; color:#7e1f1f; border:1px solid #f3b4b4; }
+    .ok{ background:#e8f7f1; color:#0c6b4e; }
+    .warn{ background:#fff7e6; color:#8a6100; }
+    .err{ background:#fde8e8; color:#7e1f1f; }
 
     .preview{
       margin-top:10px;
@@ -157,7 +155,7 @@
   <div id="status" class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v6.0</div>
+  <div class="footer">v6.1</div>
 
 </main>
 
@@ -165,55 +163,45 @@
 /* CONFIG */
 const CONFIG = {
   FLOW_URL:"https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eaecce70bbda403caa744bf8a95ddece/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4xUPro1xqrxgwZVmuyha10sbdZaPj2q7otQs2ReQpWk",
-  TARGET_MAX_BYTES:1*1024*1024,
-  TARGET_MAX_DIM:1600,
-  AUTO_REDIRECT_MS:900
-};
 
-const MAX_VIDEO_SECONDS = 10;
-const TARGET_VIDEO_BITRATE = "1000k";
+  MAX_VIDEO_MB: 20,       // ✅ limite dimensione
+  BITRATE_VIDEO: "900k",  // ✅ compressione video
+  BITRATE_AUDIO: "64k"    // ✅ compressione audio
+};
 
 const $ = id => document.getElementById(id);
 
-/* STATUS */
 function setStatus(msg,type='ok'){
   const c = type==='ok'?'pill ok':type==='err'?'pill err':'pill warn';
-  $('status').innerHTML=`<span class="${c}">${msg}</span>`;
+  $('status').innerHTML = `<span class="${c}">${msg}</span>`;
 }
-function disableUI(v){
-  $('btnPhoto').disabled=v;
-  $('btnVideo').disabled=v;
+function disableUI(b){
+  $('btnPhoto').disabled=b;
+  $('btnVideo').disabled=b;
 }
 
-/* PREVIEW */
 function showPreview(file){
   const url = URL.createObjectURL(file);
-  const p = $('preview');
-  p.innerHTML='';
-  if(file.type.startsWith('image/')){
-    const img=new Image();
-    img.src=url;
-    p.appendChild(img);
-  } else {
-    const vid=document.createElement('video');
-    vid.controls=true;
-    vid.src=url;
-    p.appendChild(vid);
-  }
-}
-
-/* FOTO (resta identica la tua) */
-async function handlePhoto(file){
-  // ... NON MODIFICO nulla della tua gestione foto
+  $('preview').innerHTML =
+    file.type.startsWith('image/')
+      ? `<img src="${url}async function handlePhoto(file){
   showPreview(file);
-  setStatus("Caricamento foto…", "warn");
+  setStatus("Caricamento foto…","warn");
   await performUpload(file);
 }
 
-/* ✅ VIDEO: conversione + compressione + durata max */
+// ✅ VIDEO: conversione H.264 COMPATIBILE SHAREPOINT
 async function handleVideo(file){
   disableUI(true);
-  setStatus("Elaboro video… (conversione)", "warn");
+
+  // Controllo limiti MB
+  const sizeMB = file.size / (1024*1024);
+  if(sizeMB > CONFIG.MAX_VIDEO_MB){
+    setStatus(`Video sopra ${CONFIG.MAX_VIDEO_MB}MB: comprimi o accorcia il video`,"err");
+    disableUI(false); return;
+  }
+
+  setStatus("Conversione video…","warn");
 
   const { createFFmpeg, fetchFile } = FFmpeg;
   const ffmpeg = createFFmpeg({ log: false });
@@ -221,13 +209,15 @@ async function handleVideo(file){
 
   ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
-  // TRIM + COMPRESSIONE + AVC
+  // ✅ Conversione vera H.264 compatibile
   await ffmpeg.run(
     '-i', 'input.mp4',
-    '-t', MAX_VIDEO_SECONDS.toString(),
     '-vcodec', 'libx264',
-    '-b:v', TARGET_VIDEO_BITRATE,
+    '-profile:v', 'main',
+    '-preset', 'veryfast',
+    '-b:v', CONFIG.BITRATE_VIDEO,
     '-acodec', 'aac',
+    '-b:a', CONFIG.BITRATE_AUDIO,
     'output.mp4'
   );
 
@@ -235,28 +225,31 @@ async function handleVideo(file){
   const finalFile = new File([data.buffer], "video.mp4", { type: "video/mp4" });
 
   showPreview(finalFile);
-  setStatus("Caricamento video…", "warn");
+  setStatus("Caricamento…","warn");
 
   await performUpload(finalFile);
   disableUI(false);
 }
 
-/* ✅ UPLOAD invariato (resta il tuo) */
+// ✅ UPLOAD invariato
 async function performUpload(file){
   const fd = new FormData();
   fd.append("file", file, file.name);
-  fd.append("metadata", JSON.stringify({}));
+  fd.append("metadata", "{}");
 
-  await fetch(CONFIG.FLOW_URL, { method:"POST", body: fd });
-  setStatus("Operazione completata", "ok");
+  const res = await fetch(CONFIG.FLOW_URL,{method:"POST",body:fd});
+  if(!res.ok){
+    setStatus("Errore caricamento","err");
+  } else {
+    setStatus("✅ Caricato con successo","ok");
+  }
 }
 
-/* EVENTI */
 $('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
 $('btnVideo').addEventListener('click',()=> $('inputVideo').click());
 
-$('inputPhoto').addEventListener('change', e => handlePhoto(e.target.files[0]));
-$('inputVideo').addEventListener('change', e => handleVideo(e.target.files[0]));
+$('inputPhoto').addEventListener('change',e=>handlePhoto(e.target.files[0]));
+$('inputVideo').addEventListener('change',e=>handleVideo(e.target.files[0]));
 </script>
 
 </body>
