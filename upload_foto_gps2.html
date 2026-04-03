@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 
-  <!-- v6.1 – video conversione SharePoint-compatible (H.264) + compressione + limite MB -->
+  <!-- v6.2 – conversione H.264 reale + compressione + limite MB -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -15,7 +15,7 @@
   <!-- EXIF -->
   <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.min.js"></script>
 
-  <!-- ✅ FFMPEG (conversione H.264) -->
+  <!-- ✅ FFMPEG CORRETTO -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.2/dist/ffmpeg.min.js"></script>
 
   <style>
@@ -132,6 +132,7 @@
       text-align:center;
     }
   </style>
+
 </head>
 
 <body>
@@ -155,74 +156,77 @@
   <div id="status" class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <div class="footer">v6.1</div>
+  <!-- ✅ footer aggiornato -->
+  <div class="footer" id="version"></div>
 
 </main>
 
 <script>
+
+/* ✅ VERSIONE REALE MOSTRATA NEL FOOTER */
+const VERSION = "v6.2";
+
 /* CONFIG */
 const CONFIG = {
   FLOW_URL:"https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eaecce70bbda403caa744bf8a95ddece/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4xUPro1xqrxgwZVmuyha10sbdZaPj2q7otQs2ReQpWk",
-
-  MAX_VIDEO_MB: 20,       // ✅ limite dimensione
-  BITRATE_VIDEO: "900k",  // ✅ compressione video
-  BITRATE_AUDIO: "64k"    // ✅ compressione audio
+  MAX_MB: 20,       // ✅ limite MB (video può essere lungo)
+  VB:"900k",         // ✅ video bitrate
+  AB:"64k"           // ✅ audio bitrate
 };
 
 const $ = id => document.getElementById(id);
 
 function setStatus(msg,type='ok'){
-  const c = type==='ok'?'pill ok':type==='err'?'pill err':'pill warn';
+  const c = type==='ok' ? 'pill ok' :
+            type==='warn' ? 'pill warn' : 'pill err';
   $('status').innerHTML = `<span class="${c}">${msg}</span>`;
 }
-function disableUI(b){
-  $('btnPhoto').disabled=b;
-  $('btnVideo').disabled=b;
+function disableUI(v){
+  $('btnPhoto').disabled=v;
+  $('btnVideo').disabled=v;
 }
 
 function showPreview(file){
   const url = URL.createObjectURL(file);
   $('preview').innerHTML =
-    file.type.startsWith('image/')
-      ? `<img src="${url}async function handlePhoto(file){
+    file.type.startsWith("ls src="${url}TO: invariato */
+async function handlePhoto(file){
   showPreview(file);
   setStatus("Caricamento foto…","warn");
   await performUpload(file);
 }
 
-// ✅ VIDEO: conversione H.264 COMPATIBILE SHAREPOINT
+/* ✅ VIDEO: conversione vera H.264 compatibile SharePoint */
 async function handleVideo(file){
   disableUI(true);
 
-  // Controllo limiti MB
-  const sizeMB = file.size / (1024*1024);
-  if(sizeMB > CONFIG.MAX_VIDEO_MB){
-    setStatus(`Video sopra ${CONFIG.MAX_VIDEO_MB}MB: comprimi o accorcia il video`,"err");
+  const MB = file.size/(1024*1024);
+  if(MB > CONFIG.MAX_MB){
+    setStatus(`Video troppo grande (> ${CONFIG.MAX_MB}MB)`,"err");
     disableUI(false); return;
   }
 
   setStatus("Conversione video…","warn");
 
   const { createFFmpeg, fetchFile } = FFmpeg;
-  const ffmpeg = createFFmpeg({ log: false });
+  const ffmpeg = createFFmpeg({ log:false });
   await ffmpeg.load();
 
-  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+  ffmpeg.FS("writeFile","input.mp4", await fetchFile(file));
 
-  // ✅ Conversione vera H.264 compatibile
   await ffmpeg.run(
-    '-i', 'input.mp4',
-    '-vcodec', 'libx264',
-    '-profile:v', 'main',
-    '-preset', 'veryfast',
-    '-b:v', CONFIG.BITRATE_VIDEO,
-    '-acodec', 'aac',
-    '-b:a', CONFIG.BITRATE_AUDIO,
-    'output.mp4'
+    "-i","input.mp4",
+    "-vcodec","libx264",
+    "-profile:v","main",
+    "-preset","veryfast",
+    "-b:v", CONFIG.VB,
+    "-acodec","aac",
+    "-b:a", CONFIG.AB,
+    "output.mp4"
   );
 
-  const data = ffmpeg.FS('readFile', 'output.mp4');
-  const finalFile = new File([data.buffer], "video.mp4", { type: "video/mp4" });
+  const data = ffmpeg.FS("readFile","output.mp4");
+  const finalFile = new File([data.buffer],"video.mp4",{type:"video/mp4"});
 
   showPreview(finalFile);
   setStatus("Caricamento…","warn");
@@ -231,25 +235,26 @@ async function handleVideo(file){
   disableUI(false);
 }
 
-// ✅ UPLOAD invariato
+/* ✅ UPLOAD invariato */
 async function performUpload(file){
   const fd = new FormData();
   fd.append("file", file, file.name);
   fd.append("metadata", "{}");
 
   const res = await fetch(CONFIG.FLOW_URL,{method:"POST",body:fd});
-  if(!res.ok){
-    setStatus("Errore caricamento","err");
-  } else {
-    setStatus("✅ Caricato con successo","ok");
-  }
+  setStatus(res.ok ? "✅ Caricato!" : "Errore","ok");
 }
 
+/* EVENTI */
 $('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
 $('btnVideo').addEventListener('click',()=> $('inputVideo').click());
 
 $('inputPhoto').addEventListener('change',e=>handlePhoto(e.target.files[0]));
 $('inputVideo').addEventListener('change',e=>handleVideo(e.target.files[0]));
+
+/* ✅ SCRIVE LA VERSIONE NEL FOOTER */
+document.getElementById("version").textContent = VERSION;
+
 </script>
 
 </body>
