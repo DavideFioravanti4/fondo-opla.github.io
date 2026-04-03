@@ -12,10 +12,10 @@
   <title>Upload foto / video</title>
   <meta name="color-scheme" content="light dark"/>
 
-  <!-- EXIF -->
-  <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.min.js"></script>
+  <!-- ✅ EXIF -->
+  <script src="https://unpkg.com/exifr@7..umd.min.js</script>
 
-  <!-- ✅ FFMPEG CORRETTO -->
+  <!-- ✅ FFMPEG CORRETTO (non più .jsscript>) -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.2/dist/ffmpeg.min.js"></script>
 
   <style>
@@ -156,40 +156,43 @@
   <div id="status" class="status"></div>
   <div id="preview" class="preview"></div>
 
-  <!-- ✅ footer aggiornato -->
+  <!-- ✅ footer aggiornato dinamicamente -->
   <div class="footer" id="version"></div>
 
 </main>
 
 <script>
 
-/* ✅ VERSIONE REALE MOSTRATA NEL FOOTER */
+/* ✅ Versione mostrata realmente */
 const VERSION = "v6.2";
 
 /* CONFIG */
 const CONFIG = {
   FLOW_URL:"https://defaultb87cc26609c440cc8dfac92e08bf9c.b4.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/eaecce70bbda403caa744bf8a95ddece/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=4xUPro1xqrxgwZVmuyha10sbdZaPj2q7otQs2ReQpWk",
-  MAX_MB: 20,       // ✅ limite MB (video può essere lungo)
-  VB:"900k",         // ✅ video bitrate
-  AB:"64k"           // ✅ audio bitrate
+  MAX_MB: 20,
+  VB:"900k",
+  AB:"64k"
 };
 
 const $ = id => document.getElementById(id);
 
 function setStatus(msg,type='ok'){
-  const c = type==='ok' ? 'pill ok' :
-            type==='warn' ? 'pill warn' : 'pill err';
-  $('status').innerHTML = `<span class="${c}">${msg}</span>`;
+  const c=type==='ok'?'pill ok':type==='warn'?'pill warn':'pill err';
+  $('status').innerHTML=`<span class="${c}">${msg}</span>`;
 }
 function disableUI(v){
   $('btnPhoto').disabled=v;
-  $('btnVideo').disabled=v;
+=v;
 }
 
 function showPreview(file){
-  const url = URL.createObjectURL(file);
-  $('preview').innerHTML =
-    file.type.startsWith("ls src="${url}TO: invariato */
+  const url=URL.createObjectURL(file);
+  $('preview').innerHTML=file.type.startsWith("image/")
+    ? `${url}`
+    : `${url}</video>`;
+}
+
+/* ✅ FOTO */
 async function handlePhoto(file){
   showPreview(file);
   setStatus("Caricamento foto…","warn");
@@ -200,9 +203,9 @@ async function handlePhoto(file){
 async function handleVideo(file){
   disableUI(true);
 
-  const MB = file.size/(1024*1024);
+  const MB=file.size/(1024*1024);
   if(MB > CONFIG.MAX_MB){
-    setStatus(`Video troppo grande (> ${CONFIG.MAX_MB}MB)`,"err");
+    setStatus(`Video sopra ${CONFIG.MAX_MB}MB`,"err");
     disableUI(false); return;
   }
 
@@ -212,21 +215,21 @@ async function handleVideo(file){
   const ffmpeg = createFFmpeg({ log:false });
   await ffmpeg.load();
 
-  ffmpeg.FS("writeFile","input.mp4", await fetchFile(file));
+  ffmpeg.FS("writeFile","input.mp4",await fetchFile(file));
 
   await ffmpeg.run(
     "-i","input.mp4",
     "-vcodec","libx264",
     "-profile:v","main",
     "-preset","veryfast",
-    "-b:v", CONFIG.VB,
+    "-b:v",CONFIG.VB,
     "-acodec","aac",
-    "-b:a", CONFIG.AB,
+    "-b:a",CONFIG.AB,
     "output.mp4"
   );
 
-  const data = ffmpeg.FS("readFile","output.mp4");
-  const finalFile = new File([data.buffer],"video.mp4",{type:"video/mp4"});
+  const data=ffmpeg.FS("readFile","output.mp4");
+  const finalFile=new File([data.buffer],"video.mp4",{type:"video/mp4"});
 
   showPreview(finalFile);
   setStatus("Caricamento…","warn");
@@ -237,22 +240,21 @@ async function handleVideo(file){
 
 /* ✅ UPLOAD invariato */
 async function performUpload(file){
-  const fd = new FormData();
-  fd.append("file", file, file.name);
-  fd.append("metadata", "{}");
+  const fd=new FormData();
+  fd.append("file",file,file.name);
+  fd.append("metadata","{}");
 
-  const res = await fetch(CONFIG.FLOW_URL,{method:"POST",body:fd});
-  setStatus(res.ok ? "✅ Caricato!" : "Errore","ok");
+  const r=await fetch(CONFIG.FLOW_URL,{method:"POST",body:fd});
+  setStatus(r.ok?"✅ Caricato!":"Errore","ok");
 }
 
 /* EVENTI */
 $('btnPhoto').addEventListener('click',()=> $('inputPhoto').click());
 $('btnVideo').addEventListener('click',()=> $('inputVideo').click());
-
 $('inputPhoto').addEventListener('change',e=>handlePhoto(e.target.files[0]));
 $('inputVideo').addEventListener('change',e=>handleVideo(e.target.files[0]));
 
-/* ✅ SCRIVE LA VERSIONE NEL FOOTER */
+/* ✅ Mostra versione nel footer */
 document.getElementById("version").textContent = VERSION;
 
 </script>
